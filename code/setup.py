@@ -1,17 +1,4 @@
-# from distutils.core import setup
-# from distutils.extension import Extension
-# from Cython.Build import cythonize
-# from Cython.Distutils import build_ext
- 
-# extensions = [
-#     Extension("union_find", ["union_find.pyx"], language = ["c++"])  # à renommer selon les besoins
-# ]
- 
-# setup(
-#     cmdclass = {'build_ext':build_ext},
-#     ext_modules = cythonize(extensions),
-# )
-
+import numpy
 from distutils.core import Extension, setup
 from Cython.Build import cythonize
 

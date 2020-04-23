@@ -29,7 +29,11 @@ ctypedef np.intp_t ITYPE_t
 
 from numpy.math cimport INFINITY
 
-cdef class UnionFind(object):
+class UN():
+    def __init_(self,N):
+        self.N = 10
+
+cdef class UnionFind():
 
     # cdef ITYPE_t next_label
     
@@ -41,10 +45,11 @@ cdef class UnionFind(object):
         self.parent = np.full(N, -1., dtype=ITYPE, order='C')
         self.size = np.ones(N,dtype=ITYPE)
         self.succ = np.array(range(N),dtype=ITYPE)
+
       
         
-    @cython.boundscheck(False)
-    @cython.nonecheck(False)
+    # @cython.boundscheck(False)
+    # @cython.nonecheck(False)
     cdef void union(self, ITYPE_t m, ITYPE_t n):
         cdef ITYPE_t r_m
         cdef ITYPE_t r_n
@@ -74,3 +79,4 @@ cdef class UnionFind(object):
         while self.parent[p] != n:
             p, self.parent[p] = self.parent[p], n
         return n
+
