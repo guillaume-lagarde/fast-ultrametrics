@@ -13,8 +13,8 @@ ctypedef np.int8_t INT8
 
 np.import_array()
 
-from ..neighbors._dist_metrics cimport DistanceMetric
-from ..utils._fast_dict cimport IntFloatDict
+# from ..neighbors._dist_metrics cimport DistanceMetric
+# from ..utils._fast_dict cimport IntFloatDict
 
 # C++
 from cython.operator cimport dereference as deref, preincrement as inc
@@ -46,8 +46,11 @@ cdef class UnionFind(object):
     @cython.boundscheck(False)
     @cython.nonecheck(False)
     cdef void union(self, ITYPE_t m, ITYPE_t n):
-        r_m = self.find[m]
-        r_n = self.find[n]
+        cdef ITYPE_t r_m
+        cdef ITYPE_t r_n
+        
+        r_m = self.find(m)
+        r_n = self.find(n)
 
         if r_m == r_n: return
 
