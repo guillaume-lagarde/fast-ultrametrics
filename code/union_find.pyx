@@ -129,7 +129,8 @@ cpdef np.ndarray[DTYPE_t, ndim=2] _single_linkage_label(np.ndarray[DTYPE_t, ndim
         delta = L[index, 2]
 
         left_cluster = U.fast_find(left)
-        right_cluster = U.fast_find(right)
+        right_cluster =U.fast_find(right)
+        
 
         result[index][0] = left_cluster
         result[index][1] = right_cluster
