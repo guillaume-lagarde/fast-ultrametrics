@@ -47,12 +47,9 @@ cdef class UnionFind():
     @cython.boundscheck(False)
     @cython.nonecheck(False)
     cdef void union(self, ITYPE_t m, ITYPE_t n):
-        cdef ITYPE_t r_m
-        cdef ITYPE_t r_n
-        
-        r_m = self.find(m)
-        r_n = self.find(n)
-
+        cdef ITYPE_t r_m = self.find(m)
+        cdef ITYPE_t r_n = self.find(n)
+       
         if r_m == r_n: return
 
         if self.size[r_m] >= self.size[r_n]:
