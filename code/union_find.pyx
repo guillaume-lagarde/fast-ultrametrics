@@ -70,12 +70,50 @@ cdef class UnionFind():
         return n
 
 
+# Distance
+cdef DTYPE_t dist(x, y):
+    cdef DTYPE_t res = 0
+    for i in range(len(x)):
+         res += (x[i] - y[i])**2
+    return res
+   
+#--------------------------------------
+# Computing cut weights
+
+cdef np.ndarray[DTYPE_t, ndim=2] cut_weight(N, mst):
+    sets = UnionFind(N)
+    cdef DTYPE_t[:] radius = np.zeros(N, dtype=DTYPE)
+    cdef ITYPE_t c0, c1, v
+    cdef DTYPE_t d
+     
+    res = np.zeros(N, dtype=DTYPE)
+     
+    for i in range(N-1):
+        c0 = sets.find(mst[i][0])
+        c1 = sets.find(mst[i][1])
+        if sets.size[c0] < sets.size[c1]:
+            c0, c1 = c1, c0
+          # c0 is the new root
+
+        d = dist(c0, c1)
+        res[i] = 5. * max(d, radius[c0] - d, radius[c1] - d)          
+          
+          # update radius
+        v = c1
+        while True:
+            d = dist(c0, v)
+            if d > radius[c0]: radius[c0] = d
+            v = sets.succ[v]
+            if v == c1: break
+        sets.union(c0, c1)
+    return res
+
+   
 #---------------------------------------
 # Computing ultrametric from cut weights
 
 # we need a tweaked UnionFind
 cdef class UnionFindUltrametric(object):
-
     cdef ITYPE_t next_label
     cdef ITYPE_t[:] parent
     cdef ITYPE_t[:] size
@@ -143,11 +181,11 @@ cpdef np.ndarray[DTYPE_t, ndim=2] _single_linkage_label(np.ndarray[DTYPE_t, ndim
     
 
 def single_linkage_label(N, mst, cut_weights):
-     index_cut_weights = numpy.argsort(cut_weights, dtype=ITYPE)
-     L = np.zeros((N-1,3))
-     for i in range(N-1):
-         j = index_cut_weights[i]
-         L[i][0] = mst[j][0]
-         L[i][1] = mst[j][1]
-         L[i][2] = cut_weights[j][2]
+    index_cut_weights = np.argsort(cut_weights, dtype=ITYPE)
+    L = np.zeros((N-1,3))
+    for i in range(N-1):
+        j = index_cut_weights[i]
+        L[i][0] = mst[j][0]
+        L[i][1] = mst[j][1]
+        L[i][2] = cut_weights[j][2]
     return _single_linkage_label(L)
