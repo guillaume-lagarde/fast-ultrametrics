@@ -1,6 +1,7 @@
 import numpy as np
 cimport numpy as np
 cimport cython
+import math
 
 ctypedef np.float64_t DOUBLE
 ctypedef np.npy_intp INTP
@@ -75,7 +76,7 @@ cdef DTYPE_t dist(x, y):
     cdef DTYPE_t res = 0
     for i in range(len(x)):
          res += (x[i] - y[i])**2
-    return res.sqrt()
+    return math.sqrt(res)
    
 #--------------------------------------
 # Computing cut weights
@@ -188,14 +189,17 @@ cpdef np.ndarray[DTYPE_t, ndim=2] _single_linkage_label(np.ndarray[DTYPE_t, ndim
     return result_arr
     
 
-def single_linkage_label(N, mst, cut_weights):
+cpdef single_linkage_label(N, mst, cut_weights):
     assert(len(mst) == N-1)
     assert(len(mst) == len(cut_weights))
     index_cut_weights = np.argsort(cut_weights)
+    print(cut_weight)
     L = np.zeros((N-1,3))
+    print(L)
+    print(index_cut_weights)
     for i in range(N-1):
-        j = index_cut_weights[i]
-        L[i][0] = mst[j][0]
-        L[i][1] = mst[j][1]
+        j = int(index_cut_weights[i])
+        L[i][0] = float(mst[j][0])
+        L[i][1] = float(mst[j][1])
         L[i][2] = cut_weights[j][2]
     return _single_linkage_label(L)
