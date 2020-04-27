@@ -201,5 +201,5 @@ cpdef single_linkage_label(N, mst, cut_weights):
         j = int(index_cut_weights[i])
         L[i][0] = float(mst[j][0])
         L[i][1] = float(mst[j][1])
-        L[i][2] = cut_weights[j][2]
+        L[i][2] = cut_weights[j]
     return _single_linkage_label(L)
