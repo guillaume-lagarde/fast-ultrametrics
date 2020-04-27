@@ -61,13 +61,15 @@ cdef class UnionFind():
     @cython.nonecheck(False)
     cdef ITYPE_t find(self, ITYPE_t n):
         cdef ITYPE_t p
+        cdef ITYPE_t t
         p = n
         # find the root
         while self.parent[n] != -1:
             n = self.parent[n]
         # path compression
-        while self.parent[p] != n:
-            p, self.parent[p] = self.parent[p], n
+        if n!=p:
+            while self.parent[p] != n:
+                p, self.parent[p] = self.parent[p], n
         return n
 
 
@@ -94,18 +96,20 @@ def cut_weight(points, mst):
     # Can be remove if the mst is sorted
     mst_dist = np.zeros(N-1)
     for i in range(N-1):
-        mst_dist[i] = dist(points[mst[i][0]], points[mst[i][0]])
+        mst_dist[i] = dist(points[mst[i][0]], points[mst[i][1]])
     order = mst_dist.argsort()
     
     for i in range(N-1):
         c0 = sets.find(mst[order[i]][0])
         c1 = sets.find(mst[order[i]][1])
+        print("c0,c1", c0, c1)
+        print("order",order)
         if sets.size[c0] < sets.size[c1]:
             c0, c1 = c1, c0
           # c0 is the new root
 
         d = dist(points[c0], points[c1])
-        res[i] = 5. * max(d, radius[c0] - d, radius[c1] - d)          
+        res[order[i]] = 5. * max(d, radius[c0] - d, radius[c1] - d)          
           
           # update radius
         v = c1

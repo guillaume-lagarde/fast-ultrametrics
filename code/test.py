@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from union_find import *
-K = 5
+K = 6
 class TestSum(unittest.TestCase):
 
     def test_test(self):
