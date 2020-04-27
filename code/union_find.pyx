@@ -79,6 +79,27 @@ cdef DTYPE_t dist(x, y):
     for i in range(len(x)):
          res += (x[i] - y[i])**2
     return math.sqrt(res)
+
+#------------------------------------
+# minimum spanning tree
+def mst(points):
+    N = len(points)
+    edges = [(i,j) for i in range(N) for j in range(i+1,N)]
+    edges = sorted(edges, key = lambda e: dist(points[e[0]],points[e[1]]))
+    mst = np.array([[0,0] for i in range(N-1)])
+    U = UnionFind(N)
+    compteur = 0
+    for e in edges:
+        if compteur == N-1:
+            break
+        x = e[0]
+        y = e[1]
+        if U.find(x) != U.find(y):
+            mst[compteur][0] = x
+            mst[compteur][1] = y
+            U.union(x,y)
+            compteur+=1
+    return mst
    
 #--------------------------------------
 # Computing cut weights
@@ -207,3 +228,11 @@ cpdef single_linkage_label(N, mst, cut_weights):
         L[i][1] = float(mst[j][1])
         L[i][2] = cut_weights[j]
     return _single_linkage_label(L)
+
+
+def all_together(points):
+    N = len(points)
+    MST = mst(points)
+    print("MST: ",MST)
+    CW = cut_weight(points,MST)
+    return single_linkage_label(N,MST,CW)
