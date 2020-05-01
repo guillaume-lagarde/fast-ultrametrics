@@ -9,14 +9,14 @@ class TestSum(unittest.TestCase):
 
     def test_single_linkage_label_squares(self):
         K = 6
-        P = np.array([[i**2] for i in range(K)])
+        P = np.array([[i**2] for i in range(K)], dtype = np.float64)
         mst = np.array([[i,i+1] for i in range(K-1)])
         N = len(P)
         assert(len(mst) == N-1)
 
         cut_weights = cut_weight(P, mst)
         self.assertEqual(list(cut_weights), [5. * (i+1)**2 for i in range(K-1)])
-        res = single_linkage_label(N, mst, cut_weights)
+        res = single_linkage_label(mst, cut_weights)
         expected = [[ 0., 1.,   5., 2.],
                     [ 6., 2.,  20., 3.],
                     [ 7., 3.,  45., 4.],
@@ -34,7 +34,7 @@ class TestSum(unittest.TestCase):
             list(cut_weights),
             [5.*40., 5.*150., 5.*50., 5.*1., 5.*80.],
         )
-        res = single_linkage_label(N, mst, cut_weights)
+        res = single_linkage_label(mst, cut_weights)
         expected = [[ 3., 4.,   5., 2.],
                     [ 0., 1., 200., 2.],
                     [ 2., 6., 250., 3.],

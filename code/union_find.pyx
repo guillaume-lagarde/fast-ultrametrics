@@ -1,32 +1,23 @@
 import numpy as np
 cimport numpy as np
 cimport cython
-import math
+from libc.math cimport sqrt
 
-ctypedef np.float64_t DOUBLE
-ctypedef np.npy_intp INTP
-ctypedef np.int8_t INT8
-
-# Numpy must be initialized. When using numpy from C or Cython you must
-# _always_ do that, or you will have segfaults
-
+# Numpy must be initialized.
 np.import_array()
 
 # from ..neighbors._dist_metrics cimport DistanceMetric
-# from ..utils._fast_dict cimport IntFloatDict
 
 # C++
-from cython.operator cimport dereference as deref, preincrement as inc
-from libcpp.map cimport map as cpp_map
-from libc.math cimport fmax
+#from cython.operator cimport dereference as deref, preincrement as inc
+#from libcpp.map cimport map as cpp_map
 
+# C types as in scikit-learn
 DTYPE = np.float64
 ctypedef np.float64_t DTYPE_t
 
 ITYPE = np.intp
 ctypedef np.intp_t ITYPE_t
-
-from numpy.math cimport INFINITY
 
 cdef class UnionFind():
 
@@ -38,8 +29,6 @@ cdef class UnionFind():
         self.parent = np.full(N, -1., dtype=ITYPE, order='C')
         self.size = np.ones(N,dtype=ITYPE)
         self.succ = np.array(range(N),dtype=ITYPE)
-
-      
         
     @cython.boundscheck(False)
     @cython.nonecheck(False)
@@ -60,12 +49,12 @@ cdef class UnionFind():
     @cython.boundscheck(False)
     @cython.nonecheck(False)
     cdef ITYPE_t find(self, ITYPE_t n):
-        cdef ITYPE_t p
-        cdef ITYPE_t t
-        p = n
+        cdef ITYPE_t p = n
+        
         # find the root
         while self.parent[n] != -1:
             n = self.parent[n]
+            
         # path compression
         if n!=p:
             while self.parent[p] != n:
@@ -74,73 +63,82 @@ cdef class UnionFind():
 
 
 # Distance
-cdef DTYPE_t dist(x, y):
+cdef DTYPE_t dist(DTYPE_t[::1] x, DTYPE_t[::1] y, ITYPE_t dim):
     cdef DTYPE_t res = 0
-    for i in range(len(x)):
-         res += (x[i] - y[i])**2
-    return math.sqrt(res)
+    for index in range(dim):
+         res += (x[index] - y[index])**2
+    return sqrt(res)
 
 #------------------------------------
 # minimum spanning tree
-def mst(points):
-    N = len(points)
+def mst(DTYPE_t[:, ::1] points):
+    cdef ITYPE_t N = points.shape[0]
+    cdef ITYPE_t dim = points.shape[1]
+
+    mst = np.zeros(shape=(N-1, 2), dtype=ITYPE)
     edges = [(i,j) for i in range(N) for j in range(i+1,N)]
-    edges = sorted(edges, key = lambda e: dist(points[e[0]],points[e[1]]))
-    mst = np.array([[0,0] for i in range(N-1)])
+    edges = sorted(edges, key = lambda e: dist(points[e[0]], points[e[1]], dim))
     U = UnionFind(N)
-    compteur = 0
+    count = 0
     for e in edges:
-        if compteur == N-1:
+        if count == N-1:
             break
         x = e[0]
         y = e[1]
         if U.find(x) != U.find(y):
-            mst[compteur][0] = x
-            mst[compteur][1] = y
+            mst[count][0] = x
+            mst[count][1] = y
             U.union(x,y)
-            compteur+=1
+            count+=1
     return mst
    
 #--------------------------------------
-# Computing cut weights
+# Cut weight
 
 #cdef np.ndarray[DTYPE_t] cut_weight(np.ndarray[DTYPE_t, ndim=2] points, mst):
-def cut_weight(points, mst):
-    cdef ITYPE_t N = len(points)
-    sets = UnionFind(N)
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+def cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
+    cdef ITYPE_t N = points.shape[0]
+    cdef ITYPE_t dim = points.shape[1]
+
     cdef DTYPE_t[:] radius = np.zeros(N, dtype=DTYPE)
     cdef ITYPE_t c0, c1, v
     cdef DTYPE_t d
 
-    res = np.zeros(N - 1, dtype=DTYPE)
-
+    sets = UnionFind(N)
+    result = np.zeros(N - 1, dtype=DTYPE)
+    cdef DTYPE_t[:] result_c = result
+    
     # Can be remove if the mst is sorted
     mst_dist = np.zeros(N-1)
+    cdef DTYPE_t[:] mst_dist_c = mst_dist
     for i in range(N-1):
-        mst_dist[i] = dist(points[mst[i][0]], points[mst[i][1]])
+        mst_dist[i] = dist(points[mst[i][0]], points[mst[i][1]], dim)
     order = mst_dist.argsort()
-    
+
+    # 
     for i in range(N-1):
         c0 = sets.find(mst[order[i]][0])
         c1 = sets.find(mst[order[i]][1])
-        print("c0,c1", c0, c1)
-        print("order",order)
         if sets.size[c0] < sets.size[c1]:
             c0, c1 = c1, c0
-          # c0 is the new root
 
-        d = dist(points[c0], points[c1])
-        res[order[i]] = 5. * max(d, radius[c0] - d, radius[c1] - d)          
+        # c0 is the new root of c1
+        d = dist(points[c0], points[c1], dim)
+        # Expression of the 5-approximation of the cut-weight
+        result_c[order[i]] = 5. * max(d, radius[c0] - d, radius[c1] - d)          
           
-          # update radius
+        # Update radius of the new component with center c0
         v = c1
         while True:
-            d = dist(points[c0], points[v])
+            d = dist(points[c0], points[v], dim)
             if d > radius[c0]: radius[c0] = d
             v = sets.succ[v]
             if v == c1: break
+            
         sets.union(c0, c1)
-    return res
+    return result
 
    
 #---------------------------------------
@@ -170,7 +168,7 @@ cdef class UnionFindUltrametric(object):
 
     @cython.boundscheck(False)
     @cython.nonecheck(False)
-    cdef ITYPE_t fast_find(self, ITYPE_t n):
+    cdef ITYPE_t find(self, ITYPE_t n):
         cdef ITYPE_t p
         p = n
         # find the highest node in the linkage graph so far
@@ -183,15 +181,15 @@ cdef class UnionFindUltrametric(object):
 
 @cython.boundscheck(False)
 @cython.nonecheck(False)
-cpdef np.ndarray[DTYPE_t, ndim=2] _single_linkage_label(np.ndarray[DTYPE_t, ndim=2] L):
-    cdef np.ndarray[DTYPE_t, ndim=2] result_arr
-    cdef DTYPE_t[:, ::1] result
+cpdef np.ndarray[DTYPE_t, ndim=2] _single_linkage_label(DTYPE_t[:, ::1] L):
+    cdef np.ndarray[DTYPE_t, ndim=2] result
 
     cdef ITYPE_t left, left_cluster, right, right_cluster, index
     cdef DTYPE_t delta
 
-    result_arr = np.zeros((L.shape[0], 4), dtype=DTYPE)
-    result = result_arr
+    result = np.zeros((L.shape[0], 4), dtype=DTYPE)
+    cdef DTYPE_t[:, ::1] result_c = result
+
     U = UnionFindUltrametric(L.shape[0] + 1)
 
     for index in range(L.shape[0]):
@@ -200,39 +198,36 @@ cpdef np.ndarray[DTYPE_t, ndim=2] _single_linkage_label(np.ndarray[DTYPE_t, ndim
         right = <ITYPE_t> L[index, 1]
         delta = L[index, 2]
 
-        left_cluster = U.fast_find(left)
-        right_cluster =U.fast_find(right)
+        left_cluster = U.find(left)
+        right_cluster =U.find(right)
         
-
-        result[index][0] = left_cluster
-        result[index][1] = right_cluster
-        result[index][2] = delta
-        result[index][3] = U.size[left_cluster] + U.size[right_cluster]
+        result_c[index][0] = left_cluster
+        result_c[index][1] = right_cluster
+        result_c[index][2] = delta
+        result_c[index][3] = U.size[left_cluster] + U.size[right_cluster]
 
         U.union(left_cluster, right_cluster)
 
-    return result_arr
+    return result
     
-
-cpdef single_linkage_label(N, mst, cut_weights):
-    assert(len(mst) == N-1)
-    assert(len(mst) == len(cut_weights))
-    index_cut_weights = np.argsort(cut_weights)
-    print(cut_weight)
-    L = np.zeros((N-1,3))
-    print(L)
-    print(index_cut_weights)
-    for i in range(N-1):
-        j = int(index_cut_weights[i])
-        L[i][0] = float(mst[j][0])
-        L[i][1] = float(mst[j][1])
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+cpdef np.ndarray[DTYPE_t, ndim=2] single_linkage_label(ITYPE_t[:, :] mst, DTYPE_t[:] cut_weights):
+    cdef ITYPE_t N = len(mst)
+    cdef ITYPE_t i, j
+    
+    cdef ITYPE_t[::1] index_cut_weights = np.argsort(cut_weights)
+    cdef DTYPE_t[:, ::1] L = np.zeros((N,3))
+    for i in range(N):
+        j = index_cut_weights[i]
+        L[i][0] = mst[j][0]
+        L[i][1] = mst[j][1]
         L[i][2] = cut_weights[j]
     return _single_linkage_label(L)
 
 
 def all_together(points):
-    N = len(points)
     MST = mst(points)
-    print("MST: ",MST)
     CW = cut_weight(points,MST)
-    return single_linkage_label(N,MST,CW)
+    return single_linkage_label(MST,CW)
