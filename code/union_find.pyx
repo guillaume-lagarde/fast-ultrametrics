@@ -32,6 +32,7 @@ cdef class UnionFind():
         
     @cython.boundscheck(False)
     @cython.nonecheck(False)
+    @cython.wraparound(False)
     cdef void union(self, ITYPE_t m, ITYPE_t n):
         cdef ITYPE_t r_m = self.find(m)
         cdef ITYPE_t r_n = self.find(n)
@@ -47,6 +48,7 @@ cdef class UnionFind():
         return
 
     @cython.boundscheck(False)
+    @cython.wraparound(False)
     @cython.nonecheck(False)
     cdef ITYPE_t find(self, ITYPE_t n):
         cdef ITYPE_t p = n
@@ -98,6 +100,7 @@ def mst(DTYPE_t[:, ::1] points):
 #cdef np.ndarray[DTYPE_t] cut_weight(np.ndarray[DTYPE_t, ndim=2] points, mst):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
+@cython.wraparound(False)
 def cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
@@ -158,6 +161,7 @@ cdef class UnionFindUltrametric(object):
 
     @cython.boundscheck(False)
     @cython.nonecheck(False)
+    @cython.wraparound(False)
     cdef void union(self, ITYPE_t m, ITYPE_t n):
         self.parent[m] = self.next_label
         self.parent[n] = self.next_label
@@ -168,6 +172,7 @@ cdef class UnionFindUltrametric(object):
 
     @cython.boundscheck(False)
     @cython.nonecheck(False)
+    @cython.wraparound(False)
     cdef ITYPE_t find(self, ITYPE_t n):
         cdef ITYPE_t p
         p = n
@@ -181,6 +186,7 @@ cdef class UnionFindUltrametric(object):
 
 @cython.boundscheck(False)
 @cython.nonecheck(False)
+@cython.wraparound(False)
 cpdef np.ndarray[DTYPE_t, ndim=2] _single_linkage_label(DTYPE_t[:, ::1] L):
     cdef np.ndarray[DTYPE_t, ndim=2] result
 
@@ -190,7 +196,7 @@ cpdef np.ndarray[DTYPE_t, ndim=2] _single_linkage_label(DTYPE_t[:, ::1] L):
     result = np.zeros((L.shape[0], 4), dtype=DTYPE)
     cdef DTYPE_t[:, ::1] result_c = result
 
-    U = UnionFindUltrametric(L.shape[0] + 1)
+    cdef UnionFindUltrametric U = UnionFindUltrametric(L.shape[0] + 1)
 
     for index in range(L.shape[0]):
 
