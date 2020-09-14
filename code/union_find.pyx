@@ -2,6 +2,7 @@ import numpy as np
 cimport numpy as np
 cimport cython
 from libc.math cimport sqrt
+import random
 
 # Numpy must be initialized.
 np.import_array()
@@ -239,6 +240,34 @@ cpdef lsh(w, U, t, DTYPE_t[:, ::1] points):
                     buckets[hashed].append(i)
                 break
     return buckets
+
+
+# Spanner
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+cpdef spanner(DTYPE_t[:, ::1] points, U, d_min, d_max):
+    cdef ITYPE_t N = points.shape[0]
+    cdef ITYPE_t dim = points.shape[1]
+    cdef ITYPE_t t = np.log2(N)**(2/3)
+    graph = set()
+    scale = d_min
+    while scale < d_max:
+        for  u in range(U):
+            buckets = lsh(scale, U, t, points)
+            for bucket in buckets.values():
+                center = np.random.choice(bucket)
+                for e in bucket:
+                    if e != center:
+                        if e < center:
+                            graph.add((e, center))
+                        else:
+                            graph.add((center, e))
+        scale*=2
+    return graph
+
+
+
 
 @cython.boundscheck(False)
 @cython.nonecheck(False)
