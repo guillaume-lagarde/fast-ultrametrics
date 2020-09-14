@@ -4,6 +4,8 @@ cimport cython
 from libc.math cimport sqrt
 import random
 
+# cython: profile=True
+
 # Numpy must be initialized.
 np.import_array()
 
@@ -74,12 +76,11 @@ cdef DTYPE_t dist(DTYPE_t[::1] x, DTYPE_t[::1] y, ITYPE_t dim):
 
 #------------------------------------
 # minimum spanning tree
-def mst(DTYPE_t[:, ::1] points):
+def mst(DTYPE_t[:, ::1] points, edges):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
 
     mst = np.zeros(shape=(N-1, 2), dtype=ITYPE)
-    edges = [(i,j) for i in range(N) for j in range(i+1,N)]
     edges = sorted(edges, key = lambda e: dist(points[e[0]], points[e[1]], dim))
     U = UnionFind(N)
     count = 0
@@ -246,14 +247,14 @@ cpdef lsh(w, U, t, DTYPE_t[:, ::1] points):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef spanner(DTYPE_t[:, ::1] points, U, d_min, d_max):
+cpdef spanner(DTYPE_t[:, ::1] points, U, d_min=0.0001, d_max=1000):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
-    cdef ITYPE_t t = np.log2(N)**(2/3)
+    cdef ITYPE_t t = max(1, np.log2(dim)**(2/3))
     graph = set()
     scale = d_min
     while scale < d_max:
-        for  u in range(U):
+        for u in range(U):
             buckets = lsh(scale, U, t, points)
             for bucket in buckets.values():
                 center = np.random.choice(bucket)
@@ -264,10 +265,11 @@ cpdef spanner(DTYPE_t[:, ::1] points, U, d_min, d_max):
                         else:
                             graph.add((center, e))
         scale*=2
+    # Add a star to ensure connectivity
+    for e in range(1,N):
+        graph.add((0, e))
+        
     return graph
-
-
-
 
 @cython.boundscheck(False)
 @cython.nonecheck(False)
@@ -286,7 +288,14 @@ cpdef np.ndarray[DTYPE_t, ndim=2] single_linkage_label(ITYPE_t[:, :] mst, DTYPE_
     return _single_linkage_label(L)
 
 
-def all_together(points):
-    MST = mst(points)
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+def all_together(points, approx, d_min=0.01, d_max=1000):
+    cdef ITYPE_t N = points.shape[0]
+    cdef ITYPE_t U = max(int(N**(approx**(-2))), 1)
+    edges = spanner(points, U, d_min, d_max)
+    
+    MST = mst(points, edges)
     CW = cut_weight(points,MST)
     return single_linkage_label(MST,CW)

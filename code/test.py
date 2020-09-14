@@ -24,6 +24,12 @@ class TestSum(unittest.TestCase):
                     [ 9., 5., 125., 6.]]
         self.assertEqual( [list(node) for node in res], expected)
 
+    def test_mst(self):
+        K = 6
+        P = np.array([[i**2] for i in range(K)], dtype = np.float64)
+        edges = spanner(P, 6)
+        tree = mst(P, edges)
+        
     def test_single_linkage_label2(self):
         P = np.array([[-150.], [-110.], [-50.], [0.], [1.], [70.]])
         N = len(P)
@@ -57,7 +63,7 @@ class TestSum(unittest.TestCase):
                       [ 8., 4.,  80., 5.],
                       [ 9., 5., 125., 6.]])
         G = spanner(P, 10, 1, 400)
-        print(G)
+       # print(G)
 
 #    def other(self):
         # P = np.array([[0., 0.], [0., 2.], [0., 3.], [3., 3.]])

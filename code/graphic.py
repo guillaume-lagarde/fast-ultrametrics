@@ -16,7 +16,7 @@ assert(len(mst) == N-1)
 # cut_weights = cut_weight(P, mst)
 # res = single_linkage_label(N, mst, cut_weights)
 # res = all_together(P)
-res =all_together(X)
+res =all_together(X, 100)
 print("############",res)
 plt.title('Hierarchical Clustering Dendrogram')
 
