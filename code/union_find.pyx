@@ -172,7 +172,6 @@ cdef class UnionFindUltrametric(object):
 
     @cython.boundscheck(False)
     @cython.nonecheck(False)
-    @cython.wraparound(False)
     cdef ITYPE_t find(self, ITYPE_t n):
         cdef ITYPE_t p
         p = n
@@ -215,7 +214,32 @@ cpdef np.ndarray[DTYPE_t, ndim=2] _single_linkage_label(DTYPE_t[:, ::1] L):
         U.union(left_cluster, right_cluster)
 
     return result
-    
+
+# Hash functions
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+cpdef lsh(w, U, t, DTYPE_t[:, ::1] points):
+#'''Compute a locality sensitive hashing w: ball radius u: number of offsets t: dimension of the projection space'''
+    shifts = np.random.uniform(0, 4*w, size=(U, t))
+    cdef ITYPE_t N = points.shape[0]
+    cdef ITYPE_t dim = points.shape[1]
+    A = np.random.normal(size=(dim, t)) / np.sqrt(t)
+    cdef DTYPE_t[:, ::1] proj = points @ A 
+
+    buckets = {}
+    for i in range(N):
+        for u in range(U):
+            center = ( np.round((proj[i] - shifts[u]) / (4 * w)) * (4 * w) ) + shifts[u]
+            if dist(center, proj[i], t) <= w:
+                hashed = hash((u, tuple(center))) # Only keep first coordinate?
+                if hashed not in buckets:
+                    buckets[hashed]=[i]
+                else:
+                    buckets[hashed].append(i)
+                break
+    return buckets
+
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)

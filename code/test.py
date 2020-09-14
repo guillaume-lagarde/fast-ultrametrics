@@ -41,7 +41,14 @@ class TestSum(unittest.TestCase):
                     [ 8., 5., 400., 4.],
                     [ 7., 9., 750., 6.]]
         self.assertEqual( [list(node) for node in res], expected)
-
+        
+    def test_lsh(self):
+        P = np.array([[ 0., 1.,   5., 2.],
+                      [ 6., 2.,  20., 3.],
+                      [ 7., 3.,  45., 4.],
+                      [ 8., 4.,  80., 5.],
+                      [ 9., 5., 125., 6.]])
+        lsh(2., 40, 4, P)
 #    def other(self):
         # P = np.array([[0., 0.], [0., 2.], [0., 3.], [3., 3.]])
         # mst = np.array([[1, 2], [0, 1], [3, 2]])
