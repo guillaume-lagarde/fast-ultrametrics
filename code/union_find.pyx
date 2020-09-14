@@ -1,10 +1,11 @@
+# cython: profile=True
+# cython: linetrace=True
 import numpy as np
 cimport numpy as np
 cimport cython
 from libc.math cimport sqrt
 import random
 
-# cython: profile=True
 
 # Numpy must be initialized.
 np.import_array()
