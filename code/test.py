@@ -25,7 +25,7 @@ class TestSum(unittest.TestCase):
         self.assertEqual( [list(node) for node in res], expected)
 
     def test_mst(self):
-        K = 6
+        K = 10
         P = np.array([[i**2] for i in range(K)], dtype = np.float64)
         edges = spanner(P, 6)
         tree = mst(P, edges)

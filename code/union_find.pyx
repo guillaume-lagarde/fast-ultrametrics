@@ -1,5 +1,6 @@
 # cython: profile=True
 # cython: linetrace=True
+
 import numpy as np
 cimport numpy as np
 cimport cython
@@ -69,8 +70,12 @@ cdef class UnionFind():
 
 
 # Distance
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.nonecheck(False)
 cdef DTYPE_t dist(DTYPE_t[::1] x, DTYPE_t[::1] y, ITYPE_t dim):
     cdef DTYPE_t res = 0
+    cdef ITYPE_t index
     for index in range(dim):
          res += (x[index] - y[index])**2
     return sqrt(res)
@@ -80,7 +85,8 @@ cdef DTYPE_t dist(DTYPE_t[::1] x, DTYPE_t[::1] y, ITYPE_t dim):
 def mst(DTYPE_t[:, ::1] points, edges):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
-
+    cdef ITYPE_t count, x, y
+    
     mst = np.zeros(shape=(N-1, 2), dtype=ITYPE)
     edges = sorted(edges, key = lambda e: dist(points[e[0]], points[e[1]], dim))
     U = UnionFind(N)
@@ -224,25 +230,28 @@ cpdef np.ndarray[DTYPE_t, ndim=2] _single_linkage_label(DTYPE_t[:, ::1] L):
 @cython.wraparound(False)
 cpdef lsh(w, U, t, DTYPE_t[:, ::1] points):
 #'''Compute a locality sensitive hashing w: ball radius u: number of offsets t: dimension of the projection space'''
-    shifts = np.random.uniform(0, 4*w, size=(U, t))
+    cdef DTYPE_t[:, ::1] shifts = np.random.uniform(0, 1, size=(U, t))
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
-    A = np.random.normal(size=(dim, t)) / np.sqrt(t)
-    cdef DTYPE_t[:, ::1] proj = points @ A 
     cdef DTYPE_t girth = 4 * w
-    cdef ITYPE_t i, j, n
+    A = np.random.normal(size=(dim, t)) / (np.sqrt(t) * girth) # everything is normalized by 4w 
+    cdef DTYPE_t[:, ::1] proj = points @ A 
+    cdef ITYPE_t i, j, u, n
     
     buckets = {}
-    cdef DTYPE_t[::1] center = np.zeros(dim)
+    cdef DTYPE_t[::1] center
+    cdef DTYPE_t[::1] shifts_u
     cdef DTYPE_t shift
     for i in range(N):
         for u in range(U):
             center = proj[i]
+            shifts_u = shifts[u]
             for j in range(t):
-                shift = shifts[u][j]
-                center[j] = round((center[j] - shift)/ girth) * girth + shift
-            if dist(center, proj[i], t) <= w:
-                hashed = hash((u, tuple(center)))
+                shift = shifts_u[j]
+                center[j] = round(center[j] - shift) + shift
+            if dist(center, proj[i], t) <= 1./4.:
+ #               hashed = pre_hash(u, center)
+                hashed = (u, tuple(center)) #maybe slow
                 if hashed not in buckets:
                     buckets[hashed]=[i]
                 else:
@@ -250,6 +259,15 @@ cpdef lsh(w, U, t, DTYPE_t[:, ::1] points):
                 break
     return buckets
 
+# Experimental hash for tests # scikitlearn has a murmurhash module for fast hashing
+cdef DTYPE_t pre_hash(u, DTYPE_t[::1] point):
+    cdef ITYPE_t dim = point.shape[0]
+    cdef DTYPE_t result = float(u)
+    cdef ITYPE_t i = 0
+    for i in range(dim):
+        result = result * 1.29743487544653432 + point[i]
+#        result = hash((result, point[i]))
+    return result
 
 # Spanner
 @cython.boundscheck(False)
@@ -260,18 +278,18 @@ cpdef spanner(DTYPE_t[:, ::1] points, U, d_min=0.0001, d_max=1000):
     cdef ITYPE_t dim = points.shape[1]
     cdef ITYPE_t t = max(1, np.log2(dim)**(2/3))
     graph = set()
-    scale = d_min
+    cdef DTYPE_t scale = d_min
+    cdef ITYPE_t u, center, e
     while scale < d_max:
         for u in range(U):
             buckets = lsh(scale, U, t, points)
             for bucket in buckets.values():
                 center = np.random.choice(bucket)
                 for e in bucket:
-                    if e != center:
-                        if e < center:
-                            graph.add((e, center))
-                        else:
-                            graph.add((center, e))
+                    if e < center:
+                        graph.add((e, center))
+                    elif e > center: # We do nothin if e=center
+                        graph.add((center, e))
         scale*=2
     # Add a star to ensure connectivity
     for e in range(1,N):
