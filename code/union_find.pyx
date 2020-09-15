@@ -3,7 +3,7 @@
 import numpy as np
 cimport numpy as np
 cimport cython
-from libc.math cimport sqrt
+from libc.math cimport sqrt, round
 import random
 
 
@@ -229,13 +229,20 @@ cpdef lsh(w, U, t, DTYPE_t[:, ::1] points):
     cdef ITYPE_t dim = points.shape[1]
     A = np.random.normal(size=(dim, t)) / np.sqrt(t)
     cdef DTYPE_t[:, ::1] proj = points @ A 
-
+    cdef DTYPE_t girth = 4 * w
+    cdef ITYPE_t i, j, n
+    
     buckets = {}
+    cdef DTYPE_t[::1] center = np.zeros(dim)
+    cdef DTYPE_t shift
     for i in range(N):
         for u in range(U):
-            center = ( np.round((proj[i] - shifts[u]) / (4 * w)) * (4 * w) ) + shifts[u]
+            center = proj[i]
+            for j in range(t):
+                shift = shifts[u][j]
+                center[j] = round((center[j] - shift)/ girth) * girth + shift
             if dist(center, proj[i], t) <= w:
-                hashed = hash((u, tuple(center))) # Only keep first coordinate?
+                hashed = hash((u, tuple(center)))
                 if hashed not in buckets:
                     buckets[hashed]=[i]
                 else:
