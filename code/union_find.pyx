@@ -80,27 +80,41 @@ cdef DTYPE_t dist(DTYPE_t[::1] x, DTYPE_t[::1] y, ITYPE_t dim):
          res += (x[index] - y[index])**2
     return sqrt(res)
 
+
 #------------------------------------
 # minimum spanning tree
-def mst(DTYPE_t[:, ::1] points, edges):
+cdef mst(DTYPE_t[:, ::1] points, graph):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
-    cdef ITYPE_t count, x, y
+    cdef ITYPE_t m = len(graph)
+    cdef ITYPE_t count, x, y, i
+
+    cdef ITYPE_t[:, ::1] edges = np.zeros(shape=(m,2), dtype=ITYPE)
+    weight = np.zeros(shape=m, dtype=DTYPE)
+    cdef DTYPE_t[::1] weight_view = weight 
+    i = 0
+    for x, y in graph:
+        edges[i][0] = x
+        edges[i][1] = y
+        weight_view[i] = dist(points[x], points[y], dim)
+        i += 1
+    cdef ITYPE_t[::1] order = np.argsort(weight)
     
     mst = np.zeros(shape=(N-1, 2), dtype=ITYPE)
-    edges = sorted(edges, key = lambda e: dist(points[e[0]], points[e[1]], dim))
+#   edges = sorted(edges, key = lambda e: dist(points[e[0]], points[e[1]], dim))
     U = UnionFind(N)
     count = 0
-    for e in edges:
-        if count == N-1:
-            break
-        x = e[0]
-        y = e[1]
+    for i in order:
+        x = edges[i][0]
+        y = edges[i][1]
         if U.find(x) != U.find(y):
             mst[count][0] = x
             mst[count][1] = y
             U.union(x,y)
             count+=1
+            if count == N-1:
+                break
+    assert(count == N-1)
     return mst
    
 #--------------------------------------
@@ -236,9 +250,9 @@ cpdef lsh(w, U, t, DTYPE_t[:, ::1] points):
     cdef DTYPE_t girth = 4 * w
     A = np.random.normal(size=(dim, t)) / (np.sqrt(t) * girth) # everything is normalized by 4w 
     cdef DTYPE_t[:, ::1] proj = points @ A 
-    cdef ITYPE_t i, j, u, n
+    cdef ITYPE_t i, j, u, n, hashed
     
-    buckets = {}
+    cdef dict buckets = {}
     cdef DTYPE_t[::1] center
     cdef DTYPE_t[::1] shifts_u
     cdef DTYPE_t shift
@@ -250,8 +264,8 @@ cpdef lsh(w, U, t, DTYPE_t[:, ::1] points):
                 shift = shifts_u[j]
                 center[j] = round(center[j] - shift) + shift
             if dist(center, proj[i], t) <= 1./4.:
- #               hashed = pre_hash(u, center)
-                hashed = (u, tuple(center)) #maybe slow
+                hashed = pre_hash(center)
+#                hashed = hash(tuple(center)) #maybe slow
                 if hashed not in buckets:
                     buckets[hashed]=[i]
                 else:
@@ -260,13 +274,12 @@ cpdef lsh(w, U, t, DTYPE_t[:, ::1] points):
     return buckets
 
 # Experimental hash for tests # scikitlearn has a murmurhash module for fast hashing
-cdef DTYPE_t pre_hash(u, DTYPE_t[::1] point):
+cdef ITYPE_t pre_hash(DTYPE_t[::1] point):
     cdef ITYPE_t dim = point.shape[0]
-    cdef DTYPE_t result = float(u)
+    cdef ITYPE_t result = 0
     cdef ITYPE_t i = 0
     for i in range(dim):
-        result = result * 1.29743487544653432 + point[i]
-#        result = hash((result, point[i]))
+        result = hash((result, point[i]))
     return result
 
 # Spanner
@@ -276,7 +289,8 @@ cdef DTYPE_t pre_hash(u, DTYPE_t[::1] point):
 cpdef spanner(DTYPE_t[:, ::1] points, U, d_min=0.0001, d_max=1000):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
-    cdef ITYPE_t t = max(1, np.log2(dim)**(2/3))
+    cdef ITYPE_t t = max(1, np.log2(dim)**(2./3.))
+    print(dim, t)
     graph = set()
     cdef DTYPE_t scale = d_min
     cdef ITYPE_t u, center, e
