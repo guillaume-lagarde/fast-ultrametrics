@@ -1,6 +1,7 @@
 import unittest
 import numpy as np
 from union_find import *
+from distortion import *
 
 class TestSum(unittest.TestCase):
 
@@ -65,6 +66,25 @@ class TestSum(unittest.TestCase):
         G = spanner(P, 10, 1, 400)
        # print(G)
 
+    def test_distortion(self):
+        tree = [[ 3., 4.,   5., 2.],
+                [ 0., 1., 200., 2.],
+                [ 2., 6., 250., 3.],
+                [ 8., 5., 400., 4.],
+                [ 7., 9., 750., 6.]]
+        print(infix_order(tree))
+
+    def test_rmq(self):
+        tree = [[ 3., 4.,   5., 2.],
+                [ 0., 1., 200., 2.],
+                [ 2., 6., 250., 3.],
+                [ 8., 5., 400., 4.],
+                [ 7., 9., 750., 6.]]
+        rmq = RMQ(tree)
+        self.assertEqual(rmq.search(7,3), 10)
+        self.assertEqual(rmq.search(2,5), 9)
+        self.assertEqual(rmq.dist(2,5), 400)
+        self.assertEqual(rmq.dist(2,2),0)
 #    def other(self):
         # P = np.array([[0., 0.], [0., 2.], [0., 3.], [3., 3.]])
         # mst = np.array([[1, 2], [0, 1], [3, 2]])
