@@ -58,7 +58,6 @@ class RMQ:
         self.tree = tree
         self.n = len(tree)+1
         self.depth = [x for (_,x) in order]
-        print(self.depth)
         self.indices = [x for (x,_) in order]
         self.positions = [0]*len(order)
         for t, i in enumerate(self.indices):
@@ -74,14 +73,10 @@ class RMQ:
             for i in range(0, self.N):
                 if i + (1 <<(j-1) ) >= self.N: break
                 i1, i2 = self.st[i][j-1], self.st[i+(1<<(j-1))][j-1]
-                print(i1, i2)
                 if self.depth[i1] < self.depth[i2]:
                     self.st[i][j] = i1
                 else:
                     self.st[i][j] = i2
-        print("##########")
-        print(self.st)
-        print("###########")
                     
     def search(self, u, v):
         iu, iv = self.positions[u], self.positions[v]
