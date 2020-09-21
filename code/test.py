@@ -64,15 +64,14 @@ class TestSum(unittest.TestCase):
                       [ 8., 4.,  80., 5.],
                       [ 9., 5., 125., 6.]])
         G = spanner(P, 10, 1, 400)
-       # print(G)
-
-    def test_distortion(self):
+       
+    def test_infix_order(self):
         tree = [[ 3., 4.,   5., 2.],
                 [ 0., 1., 200., 2.],
                 [ 2., 6., 250., 3.],
                 [ 8., 5., 400., 4.],
                 [ 7., 9., 750., 6.]]
-        print(infix_order(tree))
+        infix_order(tree)
 
     def test_rmq(self):
         tree = [[ 3., 4.,   5., 2.],
@@ -85,10 +84,17 @@ class TestSum(unittest.TestCase):
         self.assertEqual(rmq.search(2,5), 9)
         self.assertEqual(rmq.dist(2,5), 400)
         self.assertEqual(rmq.dist(2,2),0)
-#    def other(self):
-        # P = np.array([[0., 0.], [0., 2.], [0., 3.], [3., 3.]])
-        # mst = np.array([[1, 2], [0, 1], [3, 2]])
-        
+
+    def test_distortion(self):
+        P = np.array([[ 0., 1.,   5., 2.],
+                      [ 6., 2.,  20., 3.],
+                      [ 7., 3.,  45., 4.],
+                      [ 8., 4.,  80., 5.],
+                      [ 9., 5., 125., 6.]])
+        P = np.genfromtxt("datasets/DIABETES.csv", delimiter=",")
+        tree = all_together(P, 2.5)
+        print("done")
+        print(distortion(P, tree))
         
 if __name__ == '__main__':
     unittest.main()

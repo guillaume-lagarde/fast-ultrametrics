@@ -1,3 +1,5 @@
+import math
+
 # input: array left cluster, right cluster, delta, size subtree
 def infix_order(tree):
     stack = [(-1,-1, -1)]
@@ -47,3 +49,21 @@ class RMQ:
         if u!= v:
             return self.tree[self.search(u, v)- self.n][2]
         return 0
+
+def dist(a, b):
+    assert(len(a) == len(b))
+    return math.sqrt(sum( (x-y)**2 for x, y in zip(a, b) ))
+    
+def distortion(data, tree):
+    rmq = RMQ(tree)
+    n = len(data)
+
+    MAX, MIN = 1., 1.
+    for i in range(n):
+        for j in range(i):
+            l2 = dist(data[i], data[j])
+            assert(rmq.dist(i, j) >= l2)
+            ratio = rmq.dist(i, j) / l2
+            MAX = max(ratio, MAX)
+            MIN = min(ratio, MIN)
+    return MAX/MIN
