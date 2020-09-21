@@ -83,7 +83,7 @@ cdef DTYPE_t dist(DTYPE_t[::1] x, DTYPE_t[::1] y, ITYPE_t dim):
 
 #------------------------------------
 # minimum spanning tree
-cdef mst(DTYPE_t[:, ::1] points, graph):
+cpdef mst(DTYPE_t[:, ::1] points, graph):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
     cdef ITYPE_t m = len(graph)
