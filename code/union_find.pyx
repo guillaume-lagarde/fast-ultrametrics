@@ -290,7 +290,6 @@ cpdef spanner(DTYPE_t[:, ::1] points, U, d_min=0.0001, d_max=1000):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
     cdef ITYPE_t t = max(1, np.log2(dim)**(2./3.))
-    print(dim, t)
     graph = set()
     cdef DTYPE_t scale = d_min
     cdef ITYPE_t u, center, e

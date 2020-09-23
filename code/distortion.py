@@ -1,4 +1,4 @@
-import math
+import math, random
 
 # input: array left cluster, right cluster, delta, size subtree
 def infix_order(tree):
@@ -102,8 +102,7 @@ def dist(a, b):
 def distortion(data, tree):
     rmq = RMQ(tree)
     n = len(data)
-
-    MAX, MIN = 1., 1.
+    MAX, MIN = 1., 1000.
     for i in range(n):
         for j in range(i):
             l2 = dist(data[i], data[j])
@@ -112,3 +111,19 @@ def distortion(data, tree):
             MAX = max(ratio, MAX)
             MIN = min(ratio, MIN)
     return MAX/MIN
+
+def fast_distortion(data, tree, nsample=10000):
+    rmq = RMQ(tree)
+    n = len(data)
+
+    MAX, MIN = 1., 1000.
+    for _ in range(nsample):
+        i = random.randrange(n)
+        j = random.randrange(n)
+        if i != j:
+            l2 = dist(data[i], data[j])
+            ratio = rmq.dist(i, j) / l2
+            MAX = max(ratio, MAX)
+            MIN = min(ratio, MIN)
+    return MAX/MIN
+    

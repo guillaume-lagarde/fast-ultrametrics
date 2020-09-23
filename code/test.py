@@ -82,8 +82,9 @@ class TestSum(unittest.TestCase):
         rmq = RMQ(tree)
         self.assertEqual(rmq.search(7,3), 10)
         self.assertEqual(rmq.search(2,5), 9)
+        self.assertEqual(rmq.search(1,1), 1)
         self.assertEqual(rmq.dist(2,5), 400)
-        self.assertEqual(rmq.dist(2,2),0)
+        self.assertEqual(rmq.dist(2,2), 0)
 
     def test_distortion(self):
         P = np.array([[ 0., 1.,   5., 2.],
@@ -95,6 +96,7 @@ class TestSum(unittest.TestCase):
         tree = all_together(P, 2.5)
         print("done")
         print(distortion(P, tree))
+        print(fast_distortion(P, tree))
         
 if __name__ == '__main__':
     unittest.main()
