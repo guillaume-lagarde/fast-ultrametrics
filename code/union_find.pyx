@@ -242,8 +242,9 @@ cpdef np.ndarray[DTYPE_t, ndim=2] _single_linkage_label(DTYPE_t[:, ::1] L):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef lsh(w, U, t, DTYPE_t[:, ::1] points):
+cpdef lsh(w, t, DTYPE_t[:, ::1] points):
 #'''Compute a locality sensitive hashing w: ball radius u: number of offsets t: dimension of the projection space'''
+    cdef ITYPE_t U = t*2**t
     cdef DTYPE_t[:, ::1] shifts = np.random.uniform(0, 1, size=(U, t))
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
@@ -253,24 +254,26 @@ cpdef lsh(w, U, t, DTYPE_t[:, ::1] points):
     cdef ITYPE_t i, j, u, n, hashed
     
     cdef dict buckets = {}
-    cdef DTYPE_t[::1] center
+    cdef DTYPE_t[::1] center = np.zeros(shape=t)
     cdef DTYPE_t[::1] shifts_u
     cdef DTYPE_t shift
+#    missed = N
     for i in range(N):
         for u in range(U):
-            center = proj[i]
             shifts_u = shifts[u]
             for j in range(t):
                 shift = shifts_u[j]
-                center[j] = round(center[j] - shift) + shift
-            if dist(center, proj[i], t) <= 1./4.:
+                center[j] = round(proj[i][j] - shift) + shift
+            if dist(center, proj[i], t) <= 0.25:
                 hashed = pre_hash(center)
 #                hashed = hash(tuple(center)) #maybe slow
                 if hashed not in buckets:
                     buckets[hashed]=[i]
                 else:
                     buckets[hashed].append(i)
+#                missed -= 1
                 break
+#    print("Missed {}/{} ({}%) dim {}".format(missed, N, missed/N*100., t))
     return buckets
 
 # Experimental hash for tests # scikitlearn has a murmurhash module for fast hashing
@@ -286,16 +289,16 @@ cdef ITYPE_t pre_hash(DTYPE_t[::1] point):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef spanner(DTYPE_t[:, ::1] points, U, d_min=0.0001, d_max=1000):
+cpdef spanner(DTYPE_t[:, ::1] points, U=4, d_min=0.0001, d_max=1000):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
-    cdef ITYPE_t t = max(1, np.log2(dim)**(2./3.))
+    cdef ITYPE_t t = min(max(1, np.log2(N)**(2./3.)), dim)
     graph = set()
     cdef DTYPE_t scale = d_min
     cdef ITYPE_t u, center, e
     while scale < d_max:
         for u in range(U):
-            buckets = lsh(scale, U, t, points)
+            buckets = lsh(scale, t, points)
             for bucket in buckets.values():
                 center = np.random.choice(bucket)
                 for e in bucket:

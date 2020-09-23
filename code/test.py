@@ -28,7 +28,7 @@ class TestSum(unittest.TestCase):
     def test_mst(self):
         K = 10
         P = np.array([[i**2] for i in range(K)], dtype = np.float64)
-        edges = spanner(P, 6)
+        edges = spanner(P)
         tree = mst(P, edges)
         
     def test_single_linkage_label2(self):
@@ -55,7 +55,7 @@ class TestSum(unittest.TestCase):
                       [ 7., 3.,  45., 4.],
                       [ 8., 4.,  80., 5.],
                       [ 9., 5., 125., 6.]])
-        lsh(2., 40, 4, P)
+        lsh(2., 4, P)
 
     def test_spanner(self):
         P = np.array([[ 0., 1.,   5., 2.],
@@ -63,7 +63,7 @@ class TestSum(unittest.TestCase):
                       [ 7., 3.,  45., 4.],
                       [ 8., 4.,  80., 5.],
                       [ 9., 5., 125., 6.]])
-        G = spanner(P, 10, 1, 400)
+        G = spanner(P, U=4, d_min=1, d_max=400)
        
     def test_infix_order(self):
         tree = [[ 3., 4.,   5., 2.],

@@ -1,7 +1,7 @@
 import pstats, cProfile
 from union_find import *
 
-file_name = "datasets/PENDIGITS.csv"
+file_name = "datasets/MICE.csv"
 X = np.genfromtxt(file_name, delimiter=",")
 print(len(X))
 
