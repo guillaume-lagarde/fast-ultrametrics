@@ -264,7 +264,7 @@ cpdef lsh(w, t, DTYPE_t[:, ::1] points):
             for j in range(t):
                 shift = shifts_u[j]
                 center[j] = round(proj[i][j] - shift) + shift
-            if dist(center, proj[i], t) <= 0.25:
+            if dist(center, proj[i], t) <= 0.5:
                 hashed = pre_hash(center)
 #                hashed = hash(tuple(center)) #maybe slow
                 if hashed not in buckets:
@@ -304,7 +304,7 @@ cpdef spanner(DTYPE_t[:, ::1] points, U=4, d_min=0.0001, d_max=1000):
                 for e in bucket:
                     if e < center:
                         graph.add((e, center))
-                    elif e > center: # We do nothin if e=center
+                    elif e > center: # We do nothing if e=center
                         graph.add((center, e))
         scale*=2
     # Add a star to ensure connectivity
