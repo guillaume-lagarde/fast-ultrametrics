@@ -26,18 +26,22 @@ def lib_all_together(points):
     return single_linkage_label(MST,CW)
 
 class Algo:
-    def __init__(self):
+    def __init__(self, N = 20):
         self.data = []
-    
+        self.N = N # Number of iterations for each parameter
     def test(self, X):
         for p in self.params:
-            print("algo")
-            tic = time.perf_counter()
-            result = self.run(p, X)
-            tac = time.perf_counter()
-            print("dist")
-            dist = average_distortion(X, result)
-            self.data.append((p, dist, tac-tic))
+            dist = 0
+            tac = 0
+            tic = 0
+            for i in range(self.N):
+                print("algo")
+                tic += time.perf_counter()
+                result = self.run(p, X)
+                tac += time.perf_counter()
+                print("dist")
+                dist += average_distortion(X, result)
+            self.data.append((p, dist/self.N, (tac-tic)/self.N))
 
 class AlgoBall(Algo):
     def __init__(self):
