@@ -126,4 +126,24 @@ def fast_distortion(data, tree, nsample=10000):
             MAX = max(ratio, MAX)
             MIN = min(ratio, MIN)
     return MAX/MIN
+
+
     
+def average_distortion(data, tree, nsample=10000):
+    rmq = RMQ(tree)
+    n = len(data)
+    S = 0
+    N = 0
+    MAX, MIN = 1., 1000.
+    for _ in range(nsample):
+        i = random.randrange(n)
+        j = random.randrange(n)
+        if i != j:
+            l2 = dist(data[i], data[j])
+            ratio = rmq.dist(i, j) / l2
+            S+=ratio
+            N+=1
+            MAX = max(ratio, MAX)
+            MIN = min(ratio, MIN)
+    return (S/N)*(1/MIN)
+
