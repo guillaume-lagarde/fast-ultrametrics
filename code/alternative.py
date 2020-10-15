@@ -1,6 +1,8 @@
 from union_find import *
 from distortion import *
 
+import matplotlib.pyplot as plt
+
 import time
 import scipy
 from scipy.sparse.csgraph import minimum_spanning_tree
@@ -29,16 +31,19 @@ class Algo:
     
     def test(self, X):
         for p in self.params:
+            print("algo")
             tic = time.perf_counter()
             result = self.run(p, X)
             tac = time.perf_counter()
-            dist = distortion(X, result)
+            print("dist")
+            dist = average_distortion(X, result)
             self.data.append((p, dist, tac-tic))
 
 class AlgoBall(Algo):
     def __init__(self):
         Algo.__init__(self)
-        self.params = [1.5, 2., 3.]
+        self.name = 'ball'
+        self.params = [1.5, 2., 3., 4.]
         
     def run(self, p, X):
         return all_together(X, p, algorithm='balls')
@@ -46,7 +51,8 @@ class AlgoBall(Algo):
 class AlgoLip(Algo):
     def __init__(self):
         Algo.__init__(self)
-        self.params = [1.5, 2., 3.]
+        self.name = 'lip'
+        self.params = [1.5, 2., 3., 4.]
         
     def run(self, p, X):
         return all_together(X, p, algorithm='lipschitz')
@@ -58,12 +64,15 @@ def compare(name):
     for algo in [AlgoBall(), AlgoLip()]:
         algo.test(X)
 
-
+        plt.plot([t for (_, _, t) in algo.data], [d for (_, d, _) in algo.data], label=algo.name)
+    plt.legend()
+    plt.show()
+            
 if __name__ == '__main__':
     import timeit
 
     #compare("PENDIGITS")
-    compare("MICE")
+    compare("DIABETES")
     
     #print(timeit.timeit("test(\"MICE\")",
      #                   setup="from __main__ import test",
