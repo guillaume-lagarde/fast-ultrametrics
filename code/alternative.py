@@ -23,19 +23,26 @@ def lib_all_together(points):
     CW = cut_weight(points,MST)
     return single_linkage_label(MST,CW)
 
-
 def compare(name):
+    d_min = 0.000001
+    
     file_name = "datasets/"+name+".csv"
     X = np.genfromtxt(file_name, delimiter=",")
-    print("a")
+    print("Data loaded")
     tic = time.perf_counter()
-    res1 = all_together(X, 2., d_min=1)
+    #
+    res1 = all_together(X, 2., d_min=d_min, algorithm='balls')
+
     toc = time.perf_counter()
-    print("b ({})".format(toc-tic))
+    print("time algo: {}s".format(toc-tic))
     tic = time.perf_counter()
-    res2 = lib_all_together(X)
+
+    res2 = all_together(X, 2., d_min=d_min, algorithm='lipschitz')
+    #res2 = lib_all_together(X)
+
     toc = time.perf_counter()
-    print("c ({})".format(toc-tic))
+    print("time algo 2: {}s".format(toc-tic))
+
     d1=distortion(X, res1)
     d2=distortion(X, res2)
     print("dist old:{}, dist lib:{}".format(d1, d2))
@@ -44,7 +51,8 @@ def compare(name):
 if __name__ == '__main__':
     import timeit
 
-    compare("PENDIGITS")
+    #compare("PENDIGITS")
+    compare("DIABETES")
     
     #print(timeit.timeit("test(\"MICE\")",
      #                   setup="from __main__ import test",

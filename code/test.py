@@ -64,6 +64,14 @@ class TestSum(unittest.TestCase):
                       [ 8., 4.,  80., 5.],
                       [ 9., 5., 125., 6.]])
         G = spanner(P, U=4, d_min=1, d_max=400)
+
+    def test_spanner_lipschitz(self):
+        P = np.array([[ 0., 1.,   5., 2.],
+                      [ 6., 2.,  20., 3.],
+                      [ 7., 3.,  45., 4.],
+                      [ 8., 4.,  80., 5.],
+                      [ 9., 5., 125., 6.]])
+        G = spanner(P, U=4, d_min=1, d_max=400, algorithm='lipschitz')
        
     def test_infix_order(self):
         tree = [[ 3., 4.,   5., 2.],

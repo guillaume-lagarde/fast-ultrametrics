@@ -242,6 +242,36 @@ cpdef np.ndarray[DTYPE_t, ndim=2] _single_linkage_label(DTYPE_t[:, ::1] L):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
+cpdef lsh_simple(w, t, DTYPE_t[:, ::1] points):
+#'''Compute a locality sensitive hashing w: ball radius t: dimension of the projection space'''
+    cdef DTYPE_t[::1] shifts = np.random.uniform(0, 1, size=t)
+    cdef ITYPE_t N = points.shape[0]
+    cdef ITYPE_t dim = points.shape[1]
+    cdef DTYPE_t girth = 4 * w
+    A = np.random.normal(size=(dim, t)) / (np.sqrt(t) * girth) # everything is normalized by 4w 
+    cdef DTYPE_t[:, ::1] proj = points @ A 
+    cdef ITYPE_t i, j, u, n
+    
+    cdef dict buckets = {}
+    cdef DTYPE_t[::1] center = np.zeros(shape=t)
+    cdef DTYPE_t shift
+#    missed = N
+    for i in range(N):
+        for j in range(t):
+            center[j] = round(proj[i][j] - shifts[j]) + shifts[j]
+            hashed = pre_hash(center)
+#            hashed = hash(tuple(center)) #maybe slow
+            if hashed not in buckets:
+                buckets[hashed]=[i]
+            else:
+                buckets[hashed].append(i)
+            break
+    return buckets
+
+# Hash functions
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
 cpdef lsh(w, t, DTYPE_t[:, ::1] points):
 #'''Compute a locality sensitive hashing w: ball radius u: number of offsets t: dimension of the projection space'''
     cdef ITYPE_t U = t*2**t
@@ -271,9 +301,7 @@ cpdef lsh(w, t, DTYPE_t[:, ::1] points):
                     buckets[hashed]=[i]
                 else:
                     buckets[hashed].append(i)
-#                missed -= 1
                 break
-#    print("Missed {}/{} ({}%) dim {}".format(missed, N, missed/N*100., t))
     return buckets
 
 # Experimental hash for tests # scikitlearn has a murmurhash module for fast hashing
@@ -289,16 +317,21 @@ cdef ITYPE_t pre_hash(DTYPE_t[::1] point):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef spanner(DTYPE_t[:, ::1] points, U=4, d_min=0.0001, d_max=1000):
+cpdef spanner(DTYPE_t[:, ::1] points, t=2, U=4, d_min=0.0001, d_max=1000, algorithm='balls'):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
-    cdef ITYPE_t t = min(max(1, np.log2(N)**(2./3.)), dim)
     graph = set()
     cdef DTYPE_t scale = d_min
     cdef ITYPE_t u, center, e
     while scale < d_max:
         for u in range(U):
-            buckets = lsh(scale, t, points)
+            if algorithm == 'balls':
+#                t = min(max(1, np.log2(N)**(2./3.)), dim)
+                buckets = lsh(scale, t, points)
+            elif algorithm == 'lipschitz':
+                buckets = lsh_simple(scale, t, points)
+            else:
+                raise ValueError("invalid algorithm")
             for bucket in buckets.values():
                 center = np.random.choice(bucket)
                 for e in bucket:
@@ -310,7 +343,7 @@ cpdef spanner(DTYPE_t[:, ::1] points, U=4, d_min=0.0001, d_max=1000):
     # Add a star to ensure connectivity
     for e in range(1,N):
         graph.add((0, e))
-        
+
     return graph
 
 @cython.boundscheck(False)
@@ -333,10 +366,10 @@ cpdef np.ndarray[DTYPE_t, ndim=2] single_linkage_label(ITYPE_t[:, :] mst, DTYPE_
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-def all_together(points, approx, d_min=0.01, d_max=1000):
+def all_together(points, approx, d_min=0.01, d_max=1000, algorithm='balls'):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t U = max(int(N**(approx**(-2))), 1)
-    edges = spanner(points, U, d_min, d_max)
+    edges = spanner(points, U=U, d_min=d_min, d_max=d_max, algorithm=algorithm)
     
     MST = mst(points, edges)
     CW = cut_weight(points,MST)
