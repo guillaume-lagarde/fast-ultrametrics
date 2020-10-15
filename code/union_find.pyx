@@ -317,33 +317,32 @@ cdef ITYPE_t pre_hash(DTYPE_t[::1] point):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef spanner(DTYPE_t[:, ::1] points, t=2, U=4, d_min=0.0001, d_max=1000, algorithm='balls'):
+cpdef spanner(DTYPE_t[:, ::1] points, scale_factor=2, t=2, d_min=0.1, d_max=1000, algorithm='balls'):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
     graph = set()
     cdef DTYPE_t scale = d_min
     cdef ITYPE_t u, center, e
     while scale < d_max:
-        for u in range(U):
-            if algorithm == 'balls':
+        if algorithm == 'balls':
 #                t = min(max(1, np.log2(N)**(2./3.)), dim)
-                buckets = lsh(scale, t, points)
-            elif algorithm == 'lipschitz':
-                buckets = lsh_simple(scale, t, points)
-            else:
-                raise ValueError("invalid algorithm")
-            for bucket in buckets.values():
-                center = np.random.choice(bucket)
-                for e in bucket:
-                    if e < center:
-                        graph.add((e, center))
-                    elif e > center: # We do nothing if e=center
-                        graph.add((center, e))
-        scale*=2
+            buckets = lsh(scale, t, points)
+        elif algorithm == 'lipschitz':
+            buckets = lsh_simple(scale, t, points)
+        else:
+            raise ValueError("invalid algorithm")
+        for bucket in buckets.values():
+            center = np.random.choice(bucket)
+            for e in bucket:
+                if e < center:
+                    graph.add((e, center))
+                elif e > center: # We do nothing if e=center
+                    graph.add((center, e))
+        scale*=scale_factor
     # Add a star to ensure connectivity
     for e in range(1,N):
         graph.add((0, e))
-
+    
     return graph
 
 @cython.boundscheck(False)
@@ -368,8 +367,10 @@ cpdef np.ndarray[DTYPE_t, ndim=2] single_linkage_label(ITYPE_t[:, :] mst, DTYPE_
 @cython.wraparound(False)
 def all_together(points, approx, d_min=0.01, d_max=1000, algorithm='balls'):
     cdef ITYPE_t N = points.shape[0]
-    cdef ITYPE_t U = max(int(N**(approx**(-2))), 1)
-    edges = spanner(points, U=U, d_min=d_min, d_max=d_max, algorithm=algorithm)
+    #cdef ITYPE_t U = max(int(N**(approx**(-2))), 1)
+    factor = 2**(1 / N ** (1/approx**2))
+    #print("U = {}, factor = {}".format(U, factor))
+    edges = spanner(points, scale_factor=factor, d_min=d_min, d_max=d_max, algorithm=algorithm)
     
     MST = mst(points, edges)
     CW = cut_weight(points,MST)
