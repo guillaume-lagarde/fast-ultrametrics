@@ -1,4 +1,4 @@
-from union_find import *
+from ultrametric import *
 from distortion import *
 
 import matplotlib.pyplot as plt
@@ -45,24 +45,24 @@ class AlgoBall(Algo):
     def __init__(self):
         Algo.__init__(self)
         self.name = 'ball'
-        self.params = [1.5, 1.55, 2., 3., 4., 5.]
+        self.params = [1.05, 1.1, 1.2, 1.3, 1.5, 2.]
         
     def run(self, p, X):
-        return all_together(X, p, algorithm='balls')
+        return ultrametric(X, scale_factor=p, lsh='balls')
 
 class AlgoLip(Algo):
     def __init__(self):
         Algo.__init__(self)
-        self.name = 'lip'
-        self.params = [1.5, 1.55, 2., 3., 4., 5.]
+        self.name = 'lipschitz'
+        self.params = [1.05, 1.1, 1.2, 1.3, 1.5, 2.]
         
     def run(self, p, X):
-        return all_together(X, p, algorithm='lipschitz')
+        return ultrametric(X, scale_factor=p, lsh='lipschitz')
 
 class AlgoLibrary(Algo):
     def __init__(self):
         Algo.__init__(self)
-        self.name = 'library'
+        self.name = 'scikit-learn nearest neighbors'
         self.params = [20, 50, 100, 200] # degree
         
     def run(self, p, X):
@@ -84,7 +84,3 @@ if __name__ == '__main__':
 
     #compare("PENDIGITS")
     compare("DIABETES")
-    
-    #print(timeit.timeit("test(\"MICE\")",
-     #                   setup="from __main__ import test",
-      #                  number=4))
