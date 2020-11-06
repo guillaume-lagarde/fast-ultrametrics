@@ -1,2 +1,0 @@
-* Todos en vrac
-   - [ ] Modifier la fonction distance
