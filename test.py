@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 from fast_ultrametrics import *
 from fast_ultrametrics.distortion import *
+from fast_ultrametrics.utils import *
 
 class TestSum(unittest.TestCase):
 
@@ -103,9 +104,16 @@ class TestSum(unittest.TestCase):
                       [ 9., 5., 125., 6.]])
         P = np.genfromtxt("datasets/DIABETES.csv", delimiter=",")
         tree = ultrametric(P)
-        print("done")
-        print(distortion(P, tree))
-        print(fast_distortion(P, tree))
+
+    def test_clusters(self):
+        P = np.array([[ 0., 1.,   5., 2.],
+                      [ 6., 2.,  20., 3.],
+                      [ 7., 3.,  45., 4.],
+                      [ 8., 4.,  80., 5.],
+                      [ 9., 5., 125., 6.]])
+        tree = ultrametric(P)
+        print(clusters(tree))
+
         
 if __name__ == '__main__':
     unittest.main()
