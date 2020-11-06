@@ -19,9 +19,9 @@ def lib_mst(P, degree=50):
     result = scipy.sparse.coo_matrix(minimum_spanning_tree(Graph))
     return np.array([[u, v] for u, v in zip(result.row, result.col)], dtype=np.intp)
 
-def lib_all_together(points):
+def lib_all_together(points, degree):
     N = points.shape[0]
-    MST = lib_mst(points)
+    MST = lib_mst(points, degree=degree)
     CW = cut_weight(points,MST)
     return single_linkage_label(MST,CW)
 
@@ -32,22 +32,20 @@ class Algo:
     def test(self, X):
         for p in self.params:
             dist = 0
-            tac = 0
-            tic = 0
+            chrono = 0
             for i in range(self.N):
-                print("algo")
-                tic += time.perf_counter()
+                print("{}/{}".format(i, self.N))
+                chrono -= time.perf_counter()
                 result = self.run(p, X)
-                tac += time.perf_counter()
-                print("dist")
-                dist += average_distortion(X, result)
-            self.data.append((p, dist/self.N, (tac-tic)/self.N))
+                chrono += time.perf_counter()
+                dist += distortion(X, result)
+            self.data.append((p, dist/self.N, chrono/self.N))
 
 class AlgoBall(Algo):
     def __init__(self):
         Algo.__init__(self)
         self.name = 'ball'
-        self.params = [1.5, 2., 3., 4.]
+        self.params = [1.5, 1.55, 2., 3., 4., 5.]
         
     def run(self, p, X):
         return all_together(X, p, algorithm='balls')
@@ -56,16 +54,25 @@ class AlgoLip(Algo):
     def __init__(self):
         Algo.__init__(self)
         self.name = 'lip'
-        self.params = [1.5, 2., 3., 4.]
+        self.params = [1.5, 1.55, 2., 3., 4., 5.]
         
     def run(self, p, X):
         return all_together(X, p, algorithm='lipschitz')
 
+class AlgoLibrary(Algo):
+    def __init__(self):
+        Algo.__init__(self)
+        self.name = 'library'
+        self.params = [20, 50, 100, 200] # degree
+        
+    def run(self, p, X):
+        return lib_all_together(X, p)
+    
 def compare(name):
     file_name = "datasets/"+name+".csv"
     X = np.genfromtxt(file_name, delimiter=",")
 
-    for algo in [AlgoBall(), AlgoLip()]:
+    for algo in [AlgoBall(), AlgoLip(), AlgoLibrary()]:
         algo.test(X)
 
         plt.plot([t for (_, _, t) in algo.data], [d for (_, d, _) in algo.data], label=algo.name)

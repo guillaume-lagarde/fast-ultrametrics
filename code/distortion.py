@@ -102,7 +102,7 @@ def dist(a, b):
 def distortion(data, tree):
     rmq = RMQ(tree)
     n = len(data)
-    MAX, MIN = 1., 1000.
+    MAX, MIN = 0., 1000.
     for i in range(n):
         for j in range(i):
             l2 = dist(data[i], data[j])
