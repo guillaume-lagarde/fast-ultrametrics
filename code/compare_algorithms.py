@@ -15,7 +15,6 @@ def lib_mst(P, degree=50):
                              metric='euclidean',
                              n_neighbors=min(degree, len(P)-1),
                              mode='connectivity')
-    print(Graph.nnz)
     result = scipy.sparse.coo_matrix(minimum_spanning_tree(Graph))
     return np.array([[u, v] for u, v in zip(result.row, result.col)], dtype=np.intp)
 
@@ -38,7 +37,7 @@ class Algo:
                 chrono -= time.perf_counter()
                 result = self.run(p, X)
                 chrono += time.perf_counter()
-                dist += distortion(X, result)
+                dist += fast_distortion(X, result)
             self.data.append((p, dist/self.N, chrono/self.N))
 
 class AlgoBall(Algo):
