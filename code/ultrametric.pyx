@@ -14,8 +14,6 @@ np.import_array()
 # from ..neighbors._dist_metrics cimport DistanceMetric
 
 # C++
-#from cython.operator cimport dereference as deref, preincrement as inc
-#from libcpp.map cimport map as cpp_map
 
 # C types as in scikit-learn
 DTYPE = np.float64
@@ -171,6 +169,7 @@ def cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
 # Computing ultrametric from cut weights
 
 # we need a tweaked UnionFind
+# this snippet of code is from scikit-learn
 cdef class UnionFindUltrametric(object):
     cdef ITYPE_t next_label
     cdef ITYPE_t[:] parent
@@ -242,8 +241,11 @@ cpdef np.ndarray[DTYPE_t, ndim=2] _single_linkage_label(DTYPE_t[:, ::1] L):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef lsh_simple(w, t, DTYPE_t[:, ::1] points):
-#'''Compute a locality sensitive hashing w: ball radius t: dimension of the projection space'''
+cpdef lsh_lipschitz(w, t, DTYPE_t[:, ::1] points):
+    """
+    Compute a locality sensitive hashing using Lipschitz paritions
+    w: cells size t: dimension of the projection space
+    """
     cdef DTYPE_t[::1] shifts = np.random.uniform(0, 1, size=t)
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
@@ -272,9 +274,12 @@ cpdef lsh_simple(w, t, DTYPE_t[:, ::1] points):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef lsh(w, t, DTYPE_t[:, ::1] points):
-#'''Compute a locality sensitive hashing w: ball radius u: number of offsets t: dimension of the projection space'''
-    cdef ITYPE_t U = t*2**t
+cpdef lsh_balls(w, t, DTYPE_t[:, ::1] points):
+    """
+    Compute a locality sensitive hashing using Andoni and Indyk construction
+    w: balls size t: dimension of the projection space
+    """
+    cdef ITYPE_t U = 4*t*2**t
     cdef DTYPE_t[:, ::1] shifts = np.random.uniform(0, 1, size=(U, t))
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
@@ -317,20 +322,21 @@ cdef ITYPE_t pre_hash(DTYPE_t[::1] point):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef spanner(DTYPE_t[:, ::1] points, scale_factor=2, t=2, d_min=0.1, d_max=1000, algorithm='balls'):
+cpdef spanner(DTYPE_t[:, ::1] points, scale_factor=2, t=2, d_min=0.1, d_max=1000, lsh='balls'):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
     graph = set()
     cdef DTYPE_t scale = d_min
     cdef ITYPE_t u, center, e
     while scale < d_max:
-        if algorithm == 'balls':
-#                t = min(max(1, np.log2(N)**(2./3.)), dim)
-            buckets = lsh(scale, t, points)
-        elif algorithm == 'lipschitz':
-            buckets = lsh_simple(scale, t, points)
+        if lsh == 'balls':
+                t = min(max(1, np.log2(N)**(2./3.)), dim)
+            buckets = lsh_balls(scale, t, points)
+        elif lsh == 'lipschitz':
+                t = min(max(1, np.log2(N), dim)
+            buckets = lsh_lipschitz(scale, t, points)
         else:
-            raise ValueError("invalid algorithm")
+            raise ValueError('lsh must be either "lipschitz" or "balls"')
         for bucket in buckets.values():
             center = np.random.choice(bucket)
             for e in bucket:
@@ -365,12 +371,23 @@ cpdef np.ndarray[DTYPE_t, ndim=2] single_linkage_label(ITYPE_t[:, :] mst, DTYPE_
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-def all_together(points, approx, d_min=0.01, d_max=1000, algorithm='balls'):
+def ultrametric(points, d_min=0.01, d_max=1000, scale_factor = 1.1, lsh='balls'):
+    '''
+    Compute the ultrametric
+    points: the set of points as a ndarray of shape (n,d) where n is the number of points, d the dimension of the space.
+    d_min: estimation of the minimal distance between two points. If d_min is greater than the real value then the smallest clusters might not be relevant.
+    d_max: estimation of the diameter of the set of points. If d_max is too small, the biggest clusters might not be relevant.
+    scale_factor: the cells size of the lsh families used to construct the spanner are given by d_min*scale_factor**i as soon as this is smaller than d_max. Therefore the number of lsh families is given by log(d_max/d_min)/log(scale_factor).
+    lsh: "lipschitz" or "balls". 
+    "lipschitz" is for using the construction of the so-called Lipschitz paritions that can be found in [CCG+98] M. Charikar, C. Chekuri, A. Goel, S. Guha, and S. A. Plotkin. "Approximating a finite metric by a small number of tree metrics". It achieves a approximation of sqrt(log n).
+    "balls" is for using the construction of the space with Euclidean balls, as explained in [AI06] A. Andoni and P. Indyk. "Near-optimal hashing algorithms for approximate nearest neighbor in high dimensions". It achieves asymptotically a 5*gamma approximation when the scale_factor is set to 2**(1 / n ** (1/approx**2)).
+    '''
+    assert scale_factor > 1
     cdef ITYPE_t N = points.shape[0]
     #cdef ITYPE_t U = max(int(N**(approx**(-2))), 1)
-    factor = 2**(1 / N ** (1/approx**2))
+    # factor = 2**(1 / N ** (1/approx**2))
     #print("U = {}, factor = {}".format(U, factor))
-    edges = spanner(points, scale_factor=factor, d_min=d_min, d_max=d_max, algorithm=algorithm)
+    edges = spanner(points, scale_factor=scale_factor, d_min=d_min, d_max=d_max, algorithm=lsh)
     
     MST = mst(points, edges)
     CW = cut_weight(points,MST)
