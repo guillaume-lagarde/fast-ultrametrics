@@ -322,18 +322,18 @@ cdef ITYPE_t pre_hash(DTYPE_t[::1] point):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef spanner(DTYPE_t[:, ::1] points, scale_factor=2, t=2, d_min=0.1, d_max=1000, lsh='balls'):
+cpdef spanner(DTYPE_t[:, ::1] points, scale_factor=2, d_min=0.1, d_max=1000, lsh='balls'):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
     graph = set()
     cdef DTYPE_t scale = d_min
-    cdef ITYPE_t u, center, e
+    cdef ITYPE_t u, center, e, t
     while scale < d_max:
         if lsh == 'balls':
-                t = min(max(1, np.log2(N)**(2./3.)), dim)
+            t = min(max(1, np.log2(N)**(2./3.)), dim)
             buckets = lsh_balls(scale, t, points)
         elif lsh == 'lipschitz':
-                t = min(max(1, np.log2(N), dim)
+            t = min(max(1, np.log2(N)), dim)
             buckets = lsh_lipschitz(scale, t, points)
         else:
             raise ValueError('lsh must be either "lipschitz" or "balls"')
@@ -387,7 +387,7 @@ def ultrametric(points, d_min=0.01, d_max=1000, scale_factor = 1.1, lsh='balls')
     #cdef ITYPE_t U = max(int(N**(approx**(-2))), 1)
     # factor = 2**(1 / N ** (1/approx**2))
     #print("U = {}, factor = {}".format(U, factor))
-    edges = spanner(points, scale_factor=scale_factor, d_min=d_min, d_max=d_max, algorithm=lsh)
+    edges = spanner(points, scale_factor=scale_factor, d_min=d_min, d_max=d_max, lsh=lsh)
     
     MST = mst(points, edges)
     CW = cut_weight(points,MST)

@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from union_find import *
+from ultrametric import *
 from distortion import *
 
 class TestSum(unittest.TestCase):
@@ -55,7 +55,7 @@ class TestSum(unittest.TestCase):
                       [ 7., 3.,  45., 4.],
                       [ 8., 4.,  80., 5.],
                       [ 9., 5., 125., 6.]])
-        lsh(2., 4, P)
+        lsh_balls(2., 4, P)
 
     def test_spanner(self):
         P = np.array([[ 0., 1.,   5., 2.],
@@ -63,7 +63,7 @@ class TestSum(unittest.TestCase):
                       [ 7., 3.,  45., 4.],
                       [ 8., 4.,  80., 5.],
                       [ 9., 5., 125., 6.]])
-        G = spanner(P, U=4, d_min=1, d_max=400)
+        G = spanner(P, d_min=1, d_max=400)
 
     def test_spanner_lipschitz(self):
         P = np.array([[ 0., 1.,   5., 2.],
@@ -71,7 +71,7 @@ class TestSum(unittest.TestCase):
                       [ 7., 3.,  45., 4.],
                       [ 8., 4.,  80., 5.],
                       [ 9., 5., 125., 6.]])
-        G = spanner(P, U=4, d_min=1, d_max=400, algorithm='lipschitz')
+        G = spanner(P, d_min=1, d_max=400, lsh='lipschitz')
        
     def test_infix_order(self):
         tree = [[ 3., 4.,   5., 2.],
@@ -101,7 +101,7 @@ class TestSum(unittest.TestCase):
                       [ 8., 4.,  80., 5.],
                       [ 9., 5., 125., 6.]])
         P = np.genfromtxt("datasets/DIABETES.csv", delimiter=",")
-        tree = all_together(P, 2.5)
+        tree = ultrametric(P)
         print("done")
         print(distortion(P, tree))
         print(fast_distortion(P, tree))
