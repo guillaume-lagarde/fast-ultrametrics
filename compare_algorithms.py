@@ -1,5 +1,5 @@
-from ultrametric import *
-from distortion import *
+from fast_ultrametrics import *
+from fast_ultrametrics.distortion import *
 
 import matplotlib.pyplot as plt
 
@@ -53,7 +53,7 @@ class AlgoLip(Algo):
     def __init__(self):
         Algo.__init__(self)
         self.name = 'lipschitz'
-        self.params = [1.05, 1.1, 1.2, 1.3, 1.5, 2.]
+        self.params = [1.01, 1.02, 1.05, 1.1, 1.2, 1.3, 1.5, 2.]
         
     def run(self, p, X):
         return ultrametric(X, scale_factor=p, lsh='lipschitz')
