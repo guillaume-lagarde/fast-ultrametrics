@@ -31,7 +31,22 @@ class TestSum(unittest.TestCase):
         K = 10
         P = np.array([[i**2] for i in range(K)], dtype = np.float64)
         edges = spanner(P)
-        tree = mst(P, edges)
+        MST = mst(P, edges)
+        # check that the mst is sorted
+        self.assertEqual(MST.shape, (K-1, 2))
+        for i in range(K-2):
+            self.assertTrue(
+                dist(P[MST[i][0]], P[MST[i][1]]) <=
+                dist(P[MST[i+1][0]], P[MST[i+1][1]])
+            )
+        # explicit test
+        P = np.array(
+            [[3.4, 4.5], [2.3, 7.2], [2.2, 2.3], [3.8, 9.9], [4.8, 6.7]],
+        dtype = np.float64)
+        edges = np.array([[0,1], [0,3], [0,4], [1,2], [1,4], [2,3], [3,4]])
+        MST = mst(P, edges)
+        expected = [[1, 4], [0, 4], [3, 4], [1, 2]]
+        self.assertEqual([ list(edge) for edge in MST ], expected)
         
     def test_single_linkage_label2(self):
         P = np.array([[-150.], [-110.], [-50.], [0.], [1.], [70.]])
@@ -104,16 +119,34 @@ class TestSum(unittest.TestCase):
                       [ 9., 5., 125., 6.]])
         P = np.genfromtxt("datasets/DIABETES.csv", delimiter=",")
         tree = ultrametric(P)
+        well_formed_tree(tree)
 
     def test_clusters(self):
         P = np.array([[ 0., 1.,   5., 2.],
                       [ 6., 2.,  20., 3.],
                       [ 7., 3.,  45., 4.],
                       [ 8., 4.,  80., 5.],
+                      [ 0., 1.,   5., 2.],
+                      [ 6., 2.,  20., 3.],
+                      [ 7., 3.,  45., 4.],
+                      [ 8., 4.,  80., 5.],
                       [ 9., 5., 125., 6.]])
         tree = ultrametric(P)
-        print(clusters(tree))
+        well_formed_tree(tree)
 
+def well_formed_tree(tree):
+    n = len(tree) + 1
+    root = 2 * n - 2
+    seen = [False] * (2 * n - 1)
+    stack = [ root ]
+    while stack:
+        node = stack.pop()
+        if seen[node]: return False
+        seen[node] = True
+        if node >= n:
+            stack.append(int(tree[node - n][0]))
+            stack.append(int(tree[node - n][1]))
+    return all(seen)
         
 if __name__ == '__main__':
     unittest.main()

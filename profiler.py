@@ -1,12 +1,12 @@
 import pstats, cProfile
-from union_find import *
+from fast_ultrametrics import *
 
-file_name = "datasets/MICE.csv"
+file_name = "datasets/PENDIGITS.csv"
 X = np.genfromtxt(file_name, delimiter=",")
 print(len(X))
 
 # Profiling
-cProfile.runctx("all_together(X, 1.5)", globals(), locals(), "Profile.prof")
+cProfile.runctx("ultrametric(X, 1.2, lsh='balls')", globals(), locals(), "Profile.prof")
 
 # Load and display Profile.prof
 s = pstats.Stats("Profile.prof")
