@@ -72,7 +72,7 @@ class TestSum(unittest.TestCase):
                       [ 7., 3.,  45., 4.],
                       [ 8., 4.,  80., 5.],
                       [ 9., 5., 125., 6.]])
-        lsh_balls(2., 4, P)
+        lsh_balls(2., 4, P, {})
 
     def test_spanner(self):
         P = np.array([[ 0., 1.,   5., 2.],

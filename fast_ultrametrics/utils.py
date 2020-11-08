@@ -17,12 +17,12 @@ def clusters(tree, n_clusters=3):
         inner_roots = [ r for r in cluster_roots if r >= n ]
         if len(inner_roots) == 0:
             break
-        to_split = min(cluster_roots, key=lambda r: tree[r - n][2])
+        to_split = max(inner_roots, key=lambda r: tree[r - n][2])
         cluster_roots.remove(to_split)
         cluster_roots.append( int(tree[to_split - n][0]) )
         cluster_roots.append( int(tree[to_split - n][1]) )
 
     result = [-1] * n
     for (num, root) in enumerate(cluster_roots):
-        dfs(root, tree, lambda leaf: assign(result, leaf, num) )
+        dfs( root, tree, lambda leaf: assign(result, leaf, num) )
     return result

@@ -6,7 +6,9 @@ X = np.genfromtxt(file_name, delimiter=",")
 print(len(X))
 
 # Profiling
-cProfile.runctx("ultrametric(X, 1.2, lsh='balls')", globals(), locals(), "Profile.prof")
+cProfile.runctx("ultrametric(X, 1.2, lsh='experimental')", globals(), locals(), "Profile.prof")
+
+cProfile.runctx("ultrametric(X, 1.2, lsh='balls')", globals(), locals(), "Profile2.prof")
 
 # Load and display Profile.prof
 s = pstats.Stats("Profile.prof")

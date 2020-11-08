@@ -10,7 +10,7 @@ import sklearn
 import numpy as np
 from sklearn.neighbors import kneighbors_graph
 
-def lib_mst(P, degree=50):
+def lib_mst(P, degree=70):
     Graph = kneighbors_graph(P,
                              metric='euclidean',
                              n_neighbors=min(degree, len(P)-1),
@@ -25,7 +25,7 @@ def lib_all_together(points, degree):
     return single_linkage_label(MST,CW)
 
 class Algo:
-    def __init__(self, N = 20):
+    def __init__(self, N = 50):
         self.data = []
         self.N = N # Number of iterations for each parameter
     def test(self, X):
@@ -40,11 +40,13 @@ class Algo:
                 dist += fast_distortion(X, result)
             self.data.append((p, dist/self.N, chrono/self.N))
 
+common_params = [1.005, 1.01, 1.02, 1.05, 1.1, 1.2, 1.3, 1.5, 2]
+            
 class AlgoBall(Algo):
     def __init__(self):
         Algo.__init__(self)
-        self.name = 'ball'
-        self.params = [1.05, 1.1, 1.2, 1.3, 1.5, 2.]
+        self.name = 'balls'
+        self.params = common_params
         
     def run(self, p, X):
         return ultrametric(X, scale_factor=p, lsh='balls')
@@ -53,10 +55,19 @@ class AlgoLip(Algo):
     def __init__(self):
         Algo.__init__(self)
         self.name = 'lipschitz'
-        self.params = [1.01, 1.02, 1.05, 1.1, 1.2, 1.3, 1.5, 2.]
+        self.params = common_params
         
     def run(self, p, X):
         return ultrametric(X, scale_factor=p, lsh='lipschitz')
+
+class AlgoExp(Algo):
+    def __init__(self):
+        Algo.__init__(self)
+        self.name = 'experimental'
+        self.params = common_params
+        
+    def run(self, p, X):
+        return ultrametric(X, scale_factor=p, lsh='experimental')
 
 class AlgoLibrary(Algo):
     def __init__(self):
@@ -71,7 +82,7 @@ def compare(name):
     file_name = "datasets/"+name+".csv"
     X = np.genfromtxt(file_name, delimiter=",")
 
-    for algo in [AlgoBall(), AlgoLip(), AlgoLibrary()]:
+    for algo in [AlgoBall(), AlgoLip(), AlgoLibrary(), AlgoExp()]:
         algo.test(X)
 
         plt.plot([t for (_, _, t) in algo.data], [d for (_, d, _) in algo.data], label=algo.name)
@@ -82,4 +93,5 @@ if __name__ == '__main__':
     import timeit
 
     #compare("PENDIGITS")
+    #compare("MICE")
     compare("DIABETES")
