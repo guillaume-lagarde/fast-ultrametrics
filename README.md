@@ -1,6 +1,6 @@
 # Fast hierarchical clustering via ultrametrics
 
-A sub-quadratic algorithm for hierarchical clustering using the method developped in [this paper](https://arxiv.org/abs/2008.06700).
+A sub-quadratic algorithm for hierarchical clustering using the method developped in [this paper](https://arxiv.org/abs/2008.06700) published in ICML'2020.
 
 The running time and the space used by the algorithm is O(N^{1+ε}) for any epsilon. The algorithm gives a proven 5ε^{-1/2}-approximation for maximal distortion. The major interrest of this algorithm is to beat the quadratic running time and space used by the classic linkage algorithms, which makes them impractical to handle huge datasets.
 
