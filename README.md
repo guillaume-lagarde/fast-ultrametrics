@@ -56,4 +56,4 @@ X_ultrametrics = ultrametric(X, d_min=0.001, d_max=10)
 ```
 Analysis of the linkage matrix `X_ultrametrics` can be done with [scipy.cluster.hierarchy](https://docs.scipy.org/doc/scipy/reference/cluster.hierarchy.html).
 
-For more examples see the [jupyter notebook](https://github.com/guillaume-lagarde/fast-ultrametrics/blob/master/exemple.ipynb)
+For more examples see the [jupyter notebook](https://github.com/guillaume-lagarde/fast-ultrametrics/blob/master/examples.ipynb)
