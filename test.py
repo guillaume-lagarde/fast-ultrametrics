@@ -1,4 +1,3 @@
-
 import unittest
 import numpy as np
 from fast_ultrametrics import *
