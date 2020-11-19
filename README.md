@@ -2,7 +2,7 @@
 
 A sub-quadratic algorithm for hierarchical clustering using the method developped in [this paper](https://arxiv.org/abs/2008.06700).
 
-The running time and the space used by the algorithm is $O(N^{1+ε})$. The algorithm gives a proven $5ε^{-1/2}$-approximation for maximal distortion. The major interrest of this algorithm is to beat the quadratic running time and space used by the classic linkage algorithms, which makes them impractical to handle huge datasets.
+The running time and the space used by the algorithm is O(N^{1+ε}) for any epsilon. The algorithm gives a proven 5ε^{-1/2}-approximation for maximal distortion. The major interrest of this algorithm is to beat the quadratic running time and space used by the classic linkage algorithms, which makes them impractical to handle huge datasets.
 
 ## Setup
 
@@ -55,5 +55,7 @@ X = np.array([[0.0936, 0.627], [0.826, 0.228],[0.884, 0.0104],[0.165 , 0.616],[0
 X_ultrametrics = ultrametric(X, d_min=0.001, d_max=10)
 ```
 Analysis of the linkage matrix `X_ultrametrics` can be done with [scipy.cluster.hierarchy](https://docs.scipy.org/doc/scipy/reference/cluster.hierarchy.html).
+
+## More examples
 
 For more examples see the [jupyter notebook](https://github.com/guillaume-lagarde/fast-ultrametrics/blob/master/examples.ipynb)
