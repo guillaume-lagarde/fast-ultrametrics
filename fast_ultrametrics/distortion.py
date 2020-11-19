@@ -140,10 +140,11 @@ def average_distortion(data, tree, nsample=10000):
         j = random.randrange(n)
         if i != j:
             l2 = dist(data[i], data[j])
-            ratio = rmq.dist(i, j) / l2
-            S+=ratio
-            N+=1
-            MAX = max(ratio, MAX)
-            MIN = min(ratio, MIN)
+            if l2 !=0:
+                ratio = rmq.dist(i, j) / l2
+                S+=ratio
+                N+=1
+                MAX = max(ratio, MAX)
+                MIN = min(ratio, MIN)
     return (S/N)*(1/MIN)
 
