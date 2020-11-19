@@ -150,7 +150,3 @@ def well_formed_tree(tree):
         
 if __name__ == '__main__':
     unittest.main()
-    
-
-
-print("OK")
