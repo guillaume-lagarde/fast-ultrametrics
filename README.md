@@ -12,7 +12,7 @@ pip install cython
 ```
 Dowload the package from github
 ```
-git clone https://github.com/guillaume-lagarde/fast_ultrametrics.git
+git https://github.com/guillaume-lagarde/fast-ultrametrics.git
 ```
 Build the library with make in the package folder
 ```
