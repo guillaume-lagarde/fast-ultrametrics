@@ -1,11 +1,14 @@
 # cython: profile=True
 # cython: linetrace=True
+from __future__ import print_function
 
 import numpy as np
 cimport numpy as np
 cimport cython
 from libc.math cimport sqrt, round
 import random
+
+import miniball 
 
 # Numpy must be initialized.
 np.import_array()
@@ -80,8 +83,27 @@ cdef DTYPE_t dist(DTYPE_t[::1] x, DTYPE_t[::1] y, ITYPE_t dim):
          res += (x[index] - y[index])**2
     return sqrt(res)
 
+# 2-approximation of the maximal distance between two points
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.nonecheck(False)
+cdef DTYPE_t dist_max(DTYPE_t[:, ::1] points):
+    cdef ITYPE_t N = points.shape[0]
+    cdef ITYPE_t dim = points.shape[1]
+    cdef DTYPE_t res = 0.
+    cdef ITYPE_t i
+    cdef DTYPE_t d
+    for i in range(1, N):
+        d = dist(points[i], points[0], dim)
+        if d > res:
+            res = d
+    return 2. * res
+
 #------------------------------------
 # minimum spanning tree
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.nonecheck(False)
 cpdef mst(DTYPE_t[:, ::1] points, graph):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
@@ -159,6 +181,223 @@ def cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
             if v == c1: break
             
         sets.union(c0, c1)
+    return result
+
+# Exact cut weight algorithm in quadratic time for the sake of comparison
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+def exact_cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
+    cdef ITYPE_t N = points.shape[0]
+    cdef ITYPE_t dim = points.shape[1]
+
+    cdef DTYPE_t[:] radius = np.zeros(N, dtype=DTYPE)
+    cdef ITYPE_t c0, c1, u, v, i
+    cdef DTYPE_t d, cw
+
+    sets = UnionFind(N)
+    result = np.zeros(N - 1, dtype=DTYPE)
+    cdef DTYPE_t[:] result_c = result
+    
+    # Can be remove if the mst is sorted
+    mst_dist = np.zeros(N-1)
+    cdef DTYPE_t[:] mst_dist_c = mst_dist
+    for i in range(N-1):
+        mst_dist[i] = dist(points[mst[i][0]], points[mst[i][1]], dim)
+    cdef ITYPE_t[:] order = mst_dist.argsort()
+
+    for i in range(N-1):
+        c0 = sets.find(mst[order[i]][0])
+        c1 = sets.find(mst[order[i]][1])
+
+        # Compute the exact cut weight
+        cw = 0.
+
+        u = c0
+        while True:
+            v = c1
+            while True:
+                d = dist(points[u], points[v], dim)
+                if d > cw:
+                    cw = d
+                v = sets.succ[v]
+                if v == c1: break
+            u = sets.succ[u]
+            if u == c0: break
+        result_c[order[i]] = cw      
+          
+        sets.union(c0, c1)
+    return result
+
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+cpdef tree_structure(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst, ITYPE_t[:] order):
+    cdef ITYPE_t N = points.shape[0]
+    cdef ITYPE_t dim = points.shape[1]
+    
+    cdef ITYPE_t i, count_leaves, offset, left, right, left_size, right_size, size, node
+    cdef DTYPE_t d
+
+    cdef DTYPE_t[:] mst_dist = np.zeros(N-1) 
+    for i in range(N-1):
+        mst_dist[i] = dist(points[mst[i][0]], points[mst[i][1]], dim)
+    
+    # Single linkage label related to legnth of edges
+    # Format: tree[n] = left cluster, right_cluster, delta, size
+    cdef np.ndarray[DTYPE_t, ndim=2] tree = single_linkage_label(mst, mst_dist)
+
+    assert(tree.shape[0] == N-1)
+    index = np.zeros(N, dtype=ITYPE)
+    node_info = np.zeros(shape=(N-1, 4), dtype=ITYPE) # start, mid, end, edge num
+    stack = [2*N-2]
+    i = N-1
+    count_leaves = N
+    
+    while stack != []:
+        node = stack.pop()
+        if node >= N:
+            i -= 1
+            left, right, _, size = tree[node - N]
+            if left >= N:
+                left_size = tree[left - N][3]
+            else:
+                left_size = 1
+            right_size = size - left_size
+            # First the largest node
+            if right_size > left_size:
+                left_size = right_size
+                left, right = right, left
+            offset = count_leaves - size
+            node_info[i][0] = offset
+            node_info[i][1] = offset + left_size
+            node_info[i][2] = offset + size
+            node_info[i][3] = order[node - N]
+            stack.append(left)
+            stack.append(right)
+        else:
+            count_leaves -= 1
+            index[count_leaves] = node
+    assert(count_leaves == 0)
+    assert(i == 0)
+    return (index, node_info, int(np.log2(N)) + 1)
+
+# A structures to stack 2-dimensional arrays or extend the highest one
+cdef class ArrayStack():
+
+    cdef DTYPE_t[:, ::1] data
+    cdef ITYPE_t[::1] index
+    cdef ITYPE_t size
+    cdef ITYPE_t data_size
+    cdef ITYPE_t dim
+    
+    def __init__(self, dim, max_stack, capacity):
+        self.data = np.empty(shape=(capacity, dim), dtype=DTYPE)
+        self.index = np.zeros(max_stack, dtype=ITYPE)
+        self.size = 0
+        self.data_size = 0  
+        self.dim = dim
+        
+    @cython.boundscheck(False)
+    @cython.nonecheck(False)
+    @cython.wraparound(False)
+    cdef push_array(self, DTYPE_t[::1] array):
+        assert(len(array) == len(self.data[self.data_size]))
+        self.data[self.data_size] = array
+        self.data_size += 1
+
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    @cython.nonecheck(False)
+    cdef push(self):
+        self.size += 1
+        self.index[self.size] = self.data_size
+
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    @cython.nonecheck(False)
+    cdef pop(self):
+        self.data_size = self.index[self.size]
+        self.size -= 1
+         
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+def cut_weight_bounding_ball(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
+
+    cdef ITYPE_t N = points.shape[0]
+    cdef ITYPE_t dim = points.shape[1]
+
+    cdef ITYPE_t i0, i, max_stack, start, mid, end, start_, end_, edge, max_point
+    cdef DTYPE_t d, r2, max_d
+    cdef DTYPE_t[::1] C
+    cdef ITYPE_t[::1] index
+    
+    sets = UnionFind(N)
+    result = np.zeros(N - 1, dtype=DTYPE)
+    cdef DTYPE_t[:] result_c = result
+
+    # Sort the mst
+    mst_dist = np.zeros(N-1)
+    cdef DTYPE_t[:] mst_dist_c = mst_dist
+    for i in range(N-1):
+        mst_dist[i] = dist(points[mst[i][0]], points[mst[i][1]], dim)
+    cdef ITYPE_t[:] order = mst_dist.argsort()
+
+    index, node_info, max_stack = tree_structure(points, mst, order)
+    
+    cdef DTYPE_t[:, ::1] centers = np.zeros(shape=(max_stack, dim), dtype=DTYPE)
+    cdef DTYPE_t[::1] radius = np.zeros(max_stack, dtype=DTYPE)
+    cdef ArrayStack stack = ArrayStack(dim, max_stack, N)
+    
+    for i in range(N-1):
+        start, mid, end, edge = node_info[i]
+        if mid == start + 1: # If the left is a leaf, create it
+            stack.push()
+            stack.push_array(points[index[start]])
+            centers[stack.size-1] = points[index[start]]
+            radius[stack.size-1] = 0.
+        if end == mid + 1:
+            stack.push()
+            stack.push_array(points[index[mid]])
+            centers[stack.size-1] = points[index[mid]]
+            radius[stack.size-1] = 0.
+        # Tests
+        #for i0 in range(start, mid):
+        #    i = index[i0]
+        #    d = dist(centers[stack.size-2], points[i], dim)
+        #    assert( d <= radius[stack.size-2] * 1.2 )
+        #for i0 in range(mid, end):
+        #    i = index[i0]
+        #    d = dist(centers[stack.size-1], points[i], dim)
+        #    assert( d <= radius[stack.size-1] * 1.2 )
+        
+        d = dist(centers[stack.size-1], centers[stack.size-2], dim)
+        result_c[edge] = d + (radius[stack.size-1] + radius[stack.size-2]) * 1.2
+        # Destroy the top of the stack
+        stack.pop()
+        # Test if the previous center is a good approximation
+        while True:
+#            print(stack.size, stack.data_size, N)
+            max_d = radius[stack.size-1] * 1.2
+            max_point = -1
+            for i0 in range(mid, end):
+                i = index[i0]
+                d = dist(centers[stack.size-1], points[i], dim)
+                if d > max_d:
+                    max_d = d
+                    max_point = i
+                    
+            if max_point != -1:
+                stack.push_array(points[max_point])
+                start_ = stack.index[stack.size]
+                end_ = stack.data_size
+                C, r2 = miniball.get_bounding_ball(stack.data[start_:end_])
+                radius[stack.size-1] = sqrt(r2)
+                centers[stack.size-1] = C
+                mid = start
+            else:
+                break
     return result
 
 @cython.boundscheck(False)
@@ -321,9 +560,10 @@ cdef ITYPE_t pre_hash(DTYPE_t[::1] point):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef spanner(DTYPE_t[:, ::1] points, scale_factor=2, d_min=0.1, d_max=1000, lsh='balls'):
+cpdef spanner(DTYPE_t[:, ::1] points, scale_factor=2, d_min=0.1, lsh='balls'):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
+    cdef DTYPE_t d_max = dist_max(points) 
     cdef set graph = set()
     cdef DTYPE_t scale = d_min
     cdef ITYPE_t u, center, e, t
@@ -366,7 +606,7 @@ cpdef np.ndarray[DTYPE_t, ndim=2] single_linkage_label(ITYPE_t[:, :] mst, DTYPE_
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-def ultrametric(points, d_min=0.01, d_max=1000, scale_factor = 1.1, lsh='balls'):
+def ultrametric(points, d_min=0.01, scale_factor = 1.1, lsh='balls', cut_weights='approximate'):
     '''
     Compute the ultrametric
     points: the set of points as a ndarray of shape (n,d) where n is the number of points, d the dimension of the space.
@@ -379,8 +619,54 @@ def ultrametric(points, d_min=0.01, d_max=1000, scale_factor = 1.1, lsh='balls')
     '''
     assert scale_factor > 1
     cdef ITYPE_t N = points.shape[0]
-    edges = spanner(points, scale_factor=scale_factor, d_min=d_min, d_max=d_max, lsh=lsh)
-    
-    MST = mst(points, edges)
-    CW = cut_weight(points,MST)
+    if lsh == 'exact':
+        MST = exact_mst(points)
+    else:
+        edges = spanner(points, scale_factor=scale_factor, d_min=d_min, lsh=lsh)    
+        MST = mst(points, edges)
+    if cut_weights == 'approximate':
+        CW = cut_weight(points, MST)
+    elif cut_weights == 'exact':
+        CW = exact_cut_weight(points, MST)
+    elif cut_weights == 'experimental':
+        CW = cut_weight_bounding_ball(points, MST)
+    else:
+        raise ValueError('cut_weights must be either "approximate" or "exact"')
     return single_linkage_label(MST,CW)
+
+
+# Exact mst using Prim algorithm on the complete graph
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+def exact_mst(DTYPE_t[:, ::1] points):
+    cdef ITYPE_t pivot, e, u, smallest_index
+    cdef DTYPE_t d, smallest_dist
+    cdef ITYPE_t N = points.shape[0]
+    cdef ITYPE_t dim = points.shape[1]
+    cdef DTYPE_t[::1] dist_to_set = np.full(N, np.inf, dtype=DTYPE)
+    cdef ITYPE_t[::1] closest_in_set = np.zeros(N, dtype=ITYPE)
+    mst = np.zeros(shape=(N-1, 2), dtype=ITYPE)
+      
+    # Initialization
+    pivot = 0
+    
+    for e in range(N-1):
+        dist_to_set[pivot] = -1. # Mark the pivot as already in the tree
+        smallest_dist = np.inf
+        smallest_index = -1
+        # Update and find minimum
+        for u in range(N):
+            if dist_to_set[u] != -1.: # If u is not already in the tree
+                d = dist(points[u], points[pivot], dim)
+                if d < dist_to_set[u]:
+                    dist_to_set[u] = d
+                    closest_in_set[u] = pivot
+                if dist_to_set[u] < smallest_dist:
+                    smallest_dist = dist_to_set[u]
+                    smallest_index = u
+        # Add the edge
+        pivot = smallest_index
+        mst[e][0] = pivot
+        mst[e][1] = closest_in_set[pivot]
+    return mst

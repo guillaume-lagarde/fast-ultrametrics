@@ -64,6 +64,21 @@ class TestSum(unittest.TestCase):
                     [ 8., 5., 400., 4.],
                     [ 7., 9., 750., 6.]]
         self.assertEqual( [list(node) for node in res], expected)
+
+    def test_bounding_balls(self):
+        K = 10
+        P = np.array([[i**2, (i - K)**3] for i in range(K)], dtype = np.float64)
+        tree = ultrametric(P, cut_weights='experimental')
+
+    def test_tree_structure(self):
+        P = np.array([[ 0., 0.],
+                      [ 1., 0.],
+                      [ 3., 0.],
+                      [ 8., 0.],
+                      [ 8.9, 0.]])
+        mst = np.array([[3, 4], [0, 1], [1, 2], [2, 3]])
+        order = np.array(range(P.shape[0] - 1))
+        index, nodes, max_stack = tree_structure(P, mst, order)
         
     def test_lsh(self):
         P = np.array([[ 0., 1.,   5., 2.],
@@ -79,7 +94,7 @@ class TestSum(unittest.TestCase):
                       [ 7., 3.,  45., 4.],
                       [ 8., 4.,  80., 5.],
                       [ 9., 5., 125., 6.]])
-        G = spanner(P, d_min=1, d_max=400)
+        G = spanner(P, d_min=1)
 
     def test_spanner_lipschitz(self):
         P = np.array([[ 0., 1.,   5., 2.],
@@ -87,7 +102,7 @@ class TestSum(unittest.TestCase):
                       [ 7., 3.,  45., 4.],
                       [ 8., 4.,  80., 5.],
                       [ 9., 5., 125., 6.]])
-        G = spanner(P, d_min=1, d_max=400, lsh='lipschitz')
+        G = spanner(P, d_min=1, lsh='lipschitz')
        
     def test_infix_order(self):
         tree = [[ 3., 4.,   5., 2.],
