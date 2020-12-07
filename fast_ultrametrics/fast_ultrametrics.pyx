@@ -443,15 +443,18 @@ cpdef np.ndarray[DTYPE_t, ndim=2] _single_linkage_label(DTYPE_t[:, ::1] L):
 
 # Locality sensitive hash functions
 # The lsh_ functions compute clusters corresponding to a particular lsh
-# and add a random star on each of these clusters to the graph in input
+# and add a random star on each of these clusters to the graph in input.
+# All these functions return the number of different hashes found.
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
 cpdef lsh_lipschitz(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, graph):
     """
-    Compute a locality sensitive hashing using Lipschitz paritions
+    Compute a locality sensitive hashing using Lipschitz partitions
+    and connect the collision clusters with a star
     w: cells size
     t: dimension of the projection space
+    graph: graph to update
     """
     cdef DTYPE_t[::1] shifts = np.random.uniform(0, 1, size=t)
     cdef ITYPE_t N = points.shape[0]
@@ -475,6 +478,7 @@ cpdef lsh_lipschitz(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, graph):
                 graph.add((i, bucket_center))
             else:
                 graph.add((bucket_center, i))
+    return len(buckets)
 
 @cython.boundscheck(False)
 @cython.nonecheck(False)
@@ -482,8 +486,10 @@ cpdef lsh_lipschitz(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, graph):
 cpdef lsh_balls(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, graph):
     """
     Compute a locality sensitive hashing using Andoni and Indyk construction
-    w: balls size
+    and connect the collision clusters with a star
+    w: cells size
     t: dimension of the projection space
+    graph: graph to update
     """
     cdef ITYPE_t U = 4*t*2**t
     cdef DTYPE_t[:, ::1] shifts = np.random.uniform(0, 1, size=(U, t))
@@ -513,12 +519,13 @@ cpdef lsh_balls(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, graph):
                     else:
                         graph.add((bucket_center, i))
                 break
+    return len(buckets)
 
 # temporary lsh function for testing modification
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef lsh_experimental(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, graph):
+cpdef ITYPE_t lsh_experimental(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, graph):
     cdef ITYPE_t U = 4*t*2**t
     cdef DTYPE_t[:, ::1] shifts = np.random.uniform(0, 1, size=(U, t))
     cdef ITYPE_t N = points.shape[0]
@@ -545,7 +552,7 @@ cpdef lsh_experimental(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, graph):
                     else:
                         graph.add((bucket_center, i))
                 break
-
+    return len(buckets)
             
 # Experimental hash for tests # scikitlearn has a murmurhash module for fast hashing
 cdef ITYPE_t pre_hash(DTYPE_t[::1] point):
@@ -560,26 +567,26 @@ cdef ITYPE_t pre_hash(DTYPE_t[::1] point):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef spanner(DTYPE_t[:, ::1] points, scale_factor=2, d_min=0.1, lsh='balls'):
+cpdef spanner(DTYPE_t[:, ::1] points, scale_factor=2, d_min=0.0001, lsh='balls'):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
-    cdef DTYPE_t d_max = dist_max(points) 
     cdef set graph = set()
-    cdef DTYPE_t scale = d_min
+    cdef DTYPE_t scale = dist_max(points)
     cdef ITYPE_t u, center, e, t
-    while scale < d_max:
+    cdef ITYPE_t bucket_count = 0
+    while scale > d_min and bucket_count < N:
         if lsh == 'balls':
             t = min(max(1, np.log2(N)**(2./3.)), dim)
-            buckets = lsh_balls(scale, t, points, graph)
+            bucket_count = lsh_balls(scale, t, points, graph)
         elif lsh == 'lipschitz':
             t = min(max(1, np.log2(N)), dim)
-            lsh_lipschitz(scale, t, points, graph)
+            bucket_count = lsh_lipschitz(scale, t, points, graph)
         elif lsh == 'experimental':
             t = min(max(1, np.log2(N)**(2./3.)), dim)
-            lsh_experimental(scale, t, points, graph)
+            bucket_count = lsh_experimental(scale, t, points, graph)
         else:
             raise ValueError('lsh must be either "lipschitz" or "balls"')
-        scale*=scale_factor
+        scale/=scale_factor
     # Add a star to ensure connectivity
     for e in range(1,N):
         graph.add((0, e))
