@@ -29,10 +29,10 @@ class Algo:
                 chrono -= time.perf_counter()
                 result = self.run(p, X)
                 chrono += time.perf_counter()
-                dist += fast_distortion(X, result)
+                dist += distortion(X, result)
             self.data.append((p, dist/self.N, chrono/self.N))
 
-common_params = [1.1, 1.5, 1.8, 2]
+common_params = [1.2, 1.3, 1.4, 1.5, 1.6, 1.8, 2, 2.1]
             
 class AlgoBall(Algo):
     def __init__(self):
@@ -82,11 +82,12 @@ class AlgoExact(Algo):
 class AlgoBoundingBall(Algo):
     def __init__(self):
         Algo.__init__(self)
-        self.name = 'experimental cutweight'
+        self.name = 'bounding balls'
         self.params = common_params
         
     def run(self, p, X):
-        return ultrametric(X, scale_factor=p, lsh='lipschitz', cut_weights='experimental')
+        return ultrametric(X, scale_factor=p,lsh='lipschitz',
+                           cut_weights='bounding balls')
 
 
 def compare(name):
@@ -94,10 +95,12 @@ def compare(name):
     X = np.genfromtxt(file_name, delimiter=",")
     print(X.shape)
 
-    for algo in [#AlgoBall(), AlgoExp(),
+    for algo in [
+#            AlgoBall(),
+#            AlgoExp(),
             AlgoLip(),
-            AlgoExact(),
-            AlgoMST(),
+#            AlgoExact(),
+#            AlgoMST(),
             AlgoBoundingBall(),
     ]:
         algo.test(X)
@@ -110,9 +113,9 @@ if __name__ == '__main__':
     import timeit
 
     
-    #compare("SHUTTLE")
-    #compare("MICE")
-#    compare("IRIS")
-#    compare("DIABETES")
-    compare("PENDIGITS")
+#    compare("SHUTTLE")
+#compare("MICE")
+    compare("IRIS")
+   # compare("DIABETES")
+    #compare("PENDIGITS")
 #

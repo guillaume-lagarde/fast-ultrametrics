@@ -46,6 +46,21 @@ class TestSum(unittest.TestCase):
         MST = mst(P, edges)
         expected = [[1, 4], [0, 4], [3, 4], [1, 2]]
         self.assertEqual([ list(edge) for edge in MST ], expected)
+
+    def test_sort_edges(self):
+        t = np.array([-1., 0., 24., 42.])
+        assert(is_sorted(t))
+        t = np.array([-1., 0., 24., 15.])
+        assert(not is_sorted(t))
+        assert(is_sorted(np.array([])))
+        #
+        P = np.array([[3., 4.], [2., 7.], [3., 9.]])
+        edges = np.array([[0, 1], [0, 2], [2, 1]])
+        expected = np.array([[2, 1], [0, 1], [0, 2]])
+        sort_edges(P, edges)
+        self.assertEqual([ list(x) for x in edges ], [ list(x) for x in expected])
+        sort_edges(P, edges)
+        self.assertEqual([ list(x) for x in edges ], [ list(x) for x in expected])        
         
     def test_single_linkage_label2(self):
         P = np.array([[-150.], [-110.], [-50.], [0.], [1.], [70.]])
@@ -55,7 +70,7 @@ class TestSum(unittest.TestCase):
         cut_weights = cut_weight(P, mst)
         self.assertEqual(
             list(cut_weights),
-            [5.*40., 5.*150., 5.*50., 5.*1., 5.*80.],
+            [5.0, 200.0, 250.0, 750.0, 400.0],
         )
         res = single_linkage_label(mst, cut_weights)
         expected = [[ 3., 4.,   5., 2.],
@@ -68,7 +83,7 @@ class TestSum(unittest.TestCase):
     def test_bounding_balls(self):
         K = 10
         P = np.array([[i**2, (i - K)**3] for i in range(K)], dtype = np.float64)
-        tree = ultrametric(P, cut_weights='experimental')
+        tree = ultrametric(P, cut_weights='bounding balls')
 
     def test_tree_structure(self):
         P = np.array([[ 0., 0.],
@@ -77,8 +92,9 @@ class TestSum(unittest.TestCase):
                       [ 8., 0.],
                       [ 8.9, 0.]])
         mst = np.array([[3, 4], [0, 1], [1, 2], [2, 3]])
-        order = np.array(range(P.shape[0] - 1))
-        index, nodes, max_stack = tree_structure(P, mst, order)
+        sort_edges(P, mst)
+        index, nodes, max_stack = tree_structure(mst)
+        
         
     def test_lsh(self):
         P = np.array([[ 0., 1.,   5., 2.],
