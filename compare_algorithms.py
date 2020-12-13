@@ -16,7 +16,7 @@ def dist(a, b):
     return res
                 
 class Algo:
-    def __init__(self, N = 5):
+    def __init__(self, N = 20):
         self.data = []
         self.N = N # Number of iterations for each parameter
     def test(self, X):
@@ -62,7 +62,7 @@ class AlgoExp(Algo):
         return ultrametric(X, scale_factor=p, lsh='experimental')
 
 class AlgoMST(Algo):
-    def __init__(self):
+    def __init__(self, N=1):
         Algo.__init__(self)
         self.name = 'prim'
         self.params = [(),()]
@@ -72,7 +72,7 @@ class AlgoMST(Algo):
     
 class AlgoExact(Algo):
     def __init__(self):
-        Algo.__init__(self)
+        Algo.__init__(self, N=1)
         self.name = 'prim + exact cutweight'
         self.params = [(),()]
         
@@ -99,8 +99,8 @@ def compare(name):
 #            AlgoBall(),
 #            AlgoExp(),
             AlgoLip(),
-#            AlgoExact(),
-#            AlgoMST(),
+            AlgoExact(),
+            AlgoMST(),
             AlgoBoundingBall(),
     ]:
         algo.test(X)
@@ -114,8 +114,8 @@ if __name__ == '__main__':
 
     
 #    compare("SHUTTLE")
-#compare("MICE")
+#    compare("MICE")
     compare("IRIS")
-   # compare("DIABETES")
+#    compare("DIABETES")
     #compare("PENDIGITS")
 #

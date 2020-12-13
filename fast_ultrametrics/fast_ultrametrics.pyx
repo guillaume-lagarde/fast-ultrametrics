@@ -146,7 +146,7 @@ def exact_mst(DTYPE_t[:, ::1] points):
     cdef DTYPE_t d, smallest_dist
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
-    cdef DTYPE_t[::1] dist_to_set = np.full(N, np.inf, dtype=DTYPE)
+    cdef DTYPE_t[::1] dist_to_set = np.full(N, np.inf, dtype=DTYPE) # set to -1 if already in set
     cdef ITYPE_t[::1] closest_in_set = np.zeros(N, dtype=ITYPE)
     mst = np.zeros(shape=(N-1, 2), dtype=ITYPE)
       
@@ -173,7 +173,7 @@ def exact_mst(DTYPE_t[:, ::1] points):
         mst[e][1] = closest_in_set[pivot]
     return mst
 
-# Sort an array of edges in increasing order of their length
+# Check if the array is sorted
 cpdef bool is_sorted(DTYPE_t[:] array): 
     cdef ITYPE_t N = len(array)
     cdef ITYPE_t i
@@ -216,13 +216,13 @@ def cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
 
     cdef DTYPE_t[:] radius = np.zeros(N, dtype=DTYPE)
     cdef ITYPE_t c0, c1, v, i
-    cdef DTYPE_t d
+    cdef DTYPE_t d, dist_c0_to_cluster1
 
     sets = UnionFind(N)
     result = np.zeros(N - 1, dtype=DTYPE)
     cdef DTYPE_t[:] result_c = result
 
-    # Sort the mst in place
+    # Sort the mst if needed
     sort_edges(points, mst)
 
     for i in range(N-1):
@@ -231,20 +231,23 @@ def cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
         if sets.size[c0] < sets.size[c1]:
             c0, c1 = c1, c0
 
-        # c0 is the new root of c1
-        d = dist(points[c0], points[c1], dim)
-        # Expression of the 5-approximation of the cut-weight
-        result_c[i] = 5. * max(d, radius[c0] - d, radius[c1] - d)          
-          
-        # Update radius of the new component with center c0
+        # Compute the maximum distance between c0 and points of the other cluster
+        dist_c0_to_cluster1 = 0.
+        # For each v in the cluster of c1..
         v = c1
         while True:
             d = dist(points[c0], points[v], dim)
-            if d > radius[c0]: radius[c0] = d
+            if d > dist_c0_to_cluster1:
+                dist_c0_to_cluster1 = d
             v = sets.succ[v]
             if v == c1: break
-            
-        sets.union(c0, c1)
+
+        # Expression of the 3-approximation of the cut-weight
+        result_c[i] = dist_c0_to_cluster1 + radius[c0]      
+
+        # Perform the union and update the radius
+        assert( sets.union(c0, c1) == c0 )
+        radius[c0] = max(radius[c0], dist_c0_to_cluster1)
     return result
 
 # Exact cut weight algorithm in quadratic time for the sake of comparison
@@ -263,7 +266,6 @@ def exact_cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
     result = np.zeros(N - 1, dtype=DTYPE)
     cdef DTYPE_t[:] result_c = result
 
-    
     # Sort the mst in place if needed
     sort_edges(points, mst)
 
@@ -285,7 +287,7 @@ def exact_cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
                 if v == c1: break
             u = sets.succ[u]
             if u == c0: break
-        result_c[e] = cw      
+        result_c[e] = cw
           
         sets.union(c0, c1)
     return result
@@ -378,11 +380,11 @@ cdef class ArrayStack():
     cdef void pop(self):
         self.data_size = self.index[self.size]
         self.size -= 1
-         
+
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-def cut_weight_bounding_ball(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst, DTYPE_t eps=0.2):
+cpdef cut_weight_bounding_ball(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst, DTYPE_t eps=0.2):
 
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
@@ -438,39 +440,48 @@ def cut_weight_bounding_ball(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst, DTYPE_
         #    i = index[i0]
         #    d = dist(centers[stack.size-1], points[i], dim)
         #    assert( d <= radius[stack.size-1] * (1. + eps) )
-        
-        d = dist(centers[stack.size-1], centers[stack.size-2], dim)
-        # result_c[edge] = d + (radius[stack.size-1] + radius[stack.size-2]) * (1. + eps)
-        result_c[edge] = sqrt(3*( d**2 + (radius[stack.size-1]**2 + radius[stack.size-2]**2) * (1. + eps)**2))
+
         # Destroy the top of the stack
         stack.pop()
-        # Test if the previous center is a good approximation
+
         # Initialization
         C[:] = centers[stack.size-1]
         r = radius[stack.size-1]
+        
+        # Computes the distance
+        max_d = 0.
+        max_point = -1
+        for i0 in range(mid, end):
+            i = index[i0]
+            d = dist(C, points[i], dim)
+            if d > max_d:
+                max_d = d
+                max_point = i
+
+        # Expression of the (sqrt(2)+eps)-approximation of the cutweight
+        result_c[edge] = max_d + r * (1. + eps)
+        
+        # Test if the previous center is a good approximation
         start_index = mid
-        while True:
+        while max_d > r * (1. + eps):
+            stack.push_array(points[max_point])
+            C, r2 = cyminiball.compute(stack.data[stack.index[stack.size]:stack.data_size])
+            r = sqrt(r2)
+            
+            # If the previous ball of the left child is in the ball B(C, r),
+            # then only check the right child on the next iteration
+            if dist(C, centers[stack.size-1], dim) + radius[stack.size-1] * (1. + eps) < r * (1. + eps):
+                start_index = mid
+            else:
+                start_index = start
+            
             max_d = r * (1. + eps) # Initial threshold is radius * (1+eps)
-            max_point = -1
             for i0 in range(start_index, end):
                 i = index[i0]
                 d = dist(C, points[i], dim)
                 if d > max_d:
                     max_d = d
                     max_point = i
-                    
-            if max_point != -1:
-                stack.push_array(points[max_point])
-                C, r2 = cyminiball.compute(stack.data[stack.index[stack.size]:stack.data_size])
-                r = sqrt(r2)
-                # If the previous ball of the left child is in the ball B(C, r),
-                # then only check the right child on the next iteration
-                if dist(C, centers[stack.size-1], dim) + radius[stack.size-1] * (1. + eps) < r * (1. + eps):
-                    start_index = mid
-                else:
-                    start_index = start
-            else:
-                break
         # Values for the new cluster
         radius[stack.size-1] = r
         centers[stack.size-1] = C
@@ -715,4 +726,3 @@ def ultrametric(points, d_min=0.01, scale_factor = 1.1, lsh='balls', cut_weights
     else:
         raise ValueError('cut_weights must be "approximate", "exact" or "bounding balls"')
     return single_linkage_label(MST,CW)
-
