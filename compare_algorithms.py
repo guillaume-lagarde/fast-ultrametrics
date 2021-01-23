@@ -7,19 +7,12 @@ import time
 import scipy
 from scipy.sparse.csgraph import minimum_spanning_tree
 import numpy as np
-
-def dist(a, b):
-    res = 0.
-    assert(len(a) == len(b))
-    for i in range(len(a)):
-        res += (a[i] - b[i])**2
-    return res
                 
 class Algo:
     def __init__(self, N = 20):
         self.data = []
         self.N = N # Number of iterations for each parameter
-    def test(self, X):
+    def test(self, X, mst):
         for p in self.params:
             dist = 0
             chrono = 0
@@ -29,10 +22,10 @@ class Algo:
                 chrono -= time.perf_counter()
                 result = self.run(p, X)
                 chrono += time.perf_counter()
-                dist += distortion(X, result)
+                dist += distortion_with_mst(X, mst, result)
             self.data.append((p, dist/self.N, chrono/self.N))
 
-common_params = [1.2, 1.3, 1.4, 1.5, 1.6, 1.8, 2, 2.1]
+common_params = [1.05, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.8]
             
 class AlgoBall(Algo):
     def __init__(self):
@@ -64,17 +57,26 @@ class AlgoExp(Algo):
 class AlgoMST(Algo):
     def __init__(self, N=1):
         Algo.__init__(self)
-        self.name = 'prim'
-        self.params = [(),()]
+        self.name = 'prim + normal cutweights'
+        self.params = [()]
         
     def run(self, p, X):
         return ultrametric(X, lsh='exact')
     
+class AlgoMSTBoundingballs(Algo):
+    def __init__(self, N=1):
+        Algo.__init__(self, N=1)
+        self.name = 'prim + bounding balls'
+        self.params = [()]
+        
+    def run(self, p, X):
+        return ultrametric(X, lsh='exact', cut_weights='bounding balls')
+    
 class AlgoExact(Algo):
     def __init__(self):
         Algo.__init__(self, N=1)
-        self.name = 'prim + exact cutweight'
-        self.params = [(),()]
+        self.name = 'Farach et al.'
+        self.params = [()]
         
     def run(self, p, X):
         return ultrametric(X, lsh='exact', cut_weights='exact')
@@ -93,6 +95,7 @@ class AlgoBoundingBall(Algo):
 def compare(name):
     file_name = "datasets/"+name+".csv"
     X = np.genfromtxt(file_name, delimiter=",")
+    mst = np.load(mst_file(file_name))
     print(X.shape)
 
     for algo in [
@@ -102,10 +105,14 @@ def compare(name):
             AlgoExact(),
             AlgoMST(),
             AlgoBoundingBall(),
+            AlgoMSTBoundingballs(),
     ]:
-        algo.test(X)
+        algo.test(X, mst)
 
-        plt.plot([t for (_, _, t) in algo.data], [d for (_, d, _) in algo.data], label=algo.name)
+        plt.plot([t for (_, _, t) in algo.data], [d for (_, d, _) in algo.data],
+                 label=algo.name,
+                 marker='o',
+        )
     plt.legend()
     plt.show()
             
@@ -117,5 +124,5 @@ if __name__ == '__main__':
 #    compare("MICE")
     compare("IRIS")
 #    compare("DIABETES")
-    #compare("PENDIGITS")
+#    compare("PENDIGITS")
 #

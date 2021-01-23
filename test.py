@@ -162,7 +162,7 @@ class TestSum(unittest.TestCase):
                       [ 8., 4.,  80., 5.],
                       [ 9., 5., 125., 6.]])
         tree = ultrametric(P)
-        well_formed_tree(tree)
+        well_formed_tree(tree)        
 
 def well_formed_tree(tree):
     n = len(tree) + 1

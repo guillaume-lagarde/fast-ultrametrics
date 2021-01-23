@@ -1,4 +1,6 @@
 import math, random
+import numpy as np
+from pathlib import Path
 
 # input: array left cluster, right cluster, delta, size subtree
 def infix_order(tree):
@@ -148,3 +150,19 @@ def average_distortion(data, tree, nsample=10000):
                 MIN = min(ratio, MIN)
     return (S/N)*(1/MIN)
 
+def mst_file(dataset_name: str):
+    MST_DIR = "mst/"
+    return MST_DIR + Path(dataset_name).stem + ".mst.npy"
+
+def distortion_with_mst(data, mst: np.ndarray, tree):
+    rmq = RMQ(tree)
+    n = len(data)
+    assert(mst.shape == (n-1, 2))
+    MAX, MIN = 0., 1000.
+    for i, j in mst:
+        l2 = dist(data[i], data[j])
+        assert(rmq.dist(i, j) >= l2)
+        ratio = rmq.dist(i, j) / l2
+        MAX = max(ratio, MAX)
+        MIN = min(ratio, MIN)
+    return MAX/MIN

@@ -141,7 +141,7 @@ cpdef np.ndarray[DTYPE_t, ndim=2] mst(DTYPE_t[:, ::1] points, graph):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-def exact_mst(DTYPE_t[:, ::1] points):
+cpdef np.ndarray[ITYPE_t, ndim=2] exact_mst(DTYPE_t[:, ::1] points):
     cdef ITYPE_t pivot, e, u, smallest_index
     cdef DTYPE_t d, smallest_dist
     cdef ITYPE_t N = points.shape[0]
@@ -276,8 +276,10 @@ def exact_cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
         # Compute the exact cut weight
         cw = 0.
 
+        # For each u in the component of c0..
         u = c0
         while True:
+            # For each v in the component of c1..
             v = c1
             while True:
                 d = dist(points[u], points[v], dim)
@@ -292,9 +294,11 @@ def exact_cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
         sets.union(c0, c1)
     return result
 
+# Takes a list of edges 
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
+@cython.boundscheck(False)
 cpdef tree_structure(ITYPE_t[:, ::1] mst):
     cdef ITYPE_t N = mst.shape[0] + 1
     
@@ -333,7 +337,7 @@ cpdef tree_structure(ITYPE_t[:, ::1] mst):
             else:
                 mid = count_leaves - right_size
             node_info_view[i][0] = count_leaves - size # Start of the node
-            node_info_view[i][1] = mid # Separation between left and right childre
+            node_info_view[i][1] = mid # Separation between left and right children
             node_info_view[i][2] = count_leaves # end of the node
             node_info_view[i][3] = node - N # index of the corresponding edge
             stack.append(left)
@@ -363,34 +367,37 @@ cdef class ArrayStack():
     @cython.boundscheck(False)
     @cython.nonecheck(False)
     @cython.wraparound(False)
-    cdef void push_array(self, DTYPE_t[::1] array):
+    cdef inline void push_array(self, DTYPE_t[::1] array):
         self.data[self.data_size] = array
         self.data_size += 1
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
     @cython.nonecheck(False)
-    cdef void push(self):
+    cdef inline void push(self):
         self.size += 1
         self.index[self.size] = self.data_size
 
     @cython.boundscheck(False)
     @cython.wraparound(False)
     @cython.nonecheck(False)
-    cdef void pop(self):
+    cdef inline void pop(self):
         self.data_size = self.index[self.size]
         self.size -= 1
 
+# Estimate the cut-weight by fitting the clusters into bounding-balls
+# This gives a sqrt(2 + epsilon)-approximation of cut-weights
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef cut_weight_bounding_ball(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst, DTYPE_t eps=0.2):
+@cython.boundscheck(False)
+cpdef cut_weight_bounding_ball(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst, DTYPE_t eps=0.1):
 
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
     
     cdef ITYPE_t i0, i, max_stack, start, mid, end, start_index, edge, max_point
-    cdef DTYPE_t d, r2, max_d
+    cdef DTYPE_t d, r, r2, max_d
     cdef DTYPE_t[::1] C = np.zeros(dim, dtype=DTYPE)
     cdef ITYPE_t[::1] index
     
@@ -413,9 +420,11 @@ cpdef cut_weight_bounding_ball(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst, DTYP
             break
     cdef ITYPE_t core_set_max_size = int(2. * np.log(d_max/d_min) / np.log(1 + eps**2)) + 1
     cdef ITYPE_t capacity = min(N, max_stack * core_set_max_size)
+    print(capacity)
     
-    cdef DTYPE_t[:, ::1] centers = np.zeros(shape=(max_stack, dim), dtype=DTYPE)
-    cdef DTYPE_t[::1] radius = np.zeros(max_stack, dtype=DTYPE)
+    cdef DTYPE_t[:, ::1] centers = np.zeros(shape=(max_stack, dim), dtype=DTYPE) # Centers of bounding balls
+    cdef DTYPE_t[::1] boundind_ball_radius = np.zeros(max_stack, dtype=DTYPE) # Radius of bounding ball
+    cdef DTYPE_t[::1] radius = np.zeros(max_stack, dtype=DTYPE) # Real radius of the cluster wrt centers
     cdef ArrayStack stack = ArrayStack(dim, max_stack, capacity)
     
     for j in range(N-1):
@@ -425,21 +434,14 @@ cpdef cut_weight_bounding_ball(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst, DTYP
             stack.push()
             stack.push_array(points[index[start]])
             centers[stack.size-1] = points[index[start]]
+            boundind_ball_radius[stack.size-1] = 0.
             radius[stack.size-1] = 0.
         if end == mid + 1:
             stack.push()
             stack.push_array(points[index[mid]])
             centers[stack.size-1] = points[index[mid]]
+            boundind_ball_radius[stack.size-1] = 0.
             radius[stack.size-1] = 0.
-        # Tests
-        #for i0 in range(start, mid):
-        #    i = index[i0]
-        #    d = dist(centers[stack.size-2], points[i], dim)
-        #    assert( d <= radius[stack.size-2] * (1. + eps) )
-        #for i0 in range(mid, end):
-        #    i = index[i0]
-        #    d = dist(centers[stack.size-1], points[i], dim)
-        #    assert( d <= radius[stack.size-1] * (1. + eps) )
 
         # Destroy the top of the stack
         stack.pop()
@@ -459,28 +461,30 @@ cpdef cut_weight_bounding_ball(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst, DTYP
                 max_point = i
 
         # Expression of the (sqrt(2)+eps)-approximation of the cutweight
-        result_c[edge] = max_d + r * (1. + eps)
+        result_c[edge] = max_d + radius[stack.size-1]
+
+        if max_d > r:
+            r = max_d
         
-        # Test if the previous center is a good approximation
-        start_index = mid
-        while max_d > r * (1. + eps):
+        while r > boundind_ball_radius[stack.size-1] * (1. + eps):
             stack.push_array(points[max_point])
             C, r2 = cyminiball.compute(stack.data[stack.index[stack.size]:stack.data_size])
             r = sqrt(r2)
+            boundind_ball_radius[stack.size-1] = r
             
             # If the previous ball of the left child is in the ball B(C, r),
             # then only check the right child on the next iteration
-            if dist(C, centers[stack.size-1], dim) + radius[stack.size-1] * (1. + eps) < r * (1. + eps):
-                start_index = mid
-            else:
-                start_index = start
+            #if dist(C, centers[stack.size-1], dim) + radius[stack.size-1] * (1. + eps) < r * (1. + eps):
+            #    start_index = mid
+            #else:
+            #    start_index = start
+            start_index = start
             
-            max_d = r * (1. + eps) # Initial threshold is radius * (1+eps)
             for i0 in range(start_index, end):
                 i = index[i0]
                 d = dist(C, points[i], dim)
-                if d > max_d:
-                    max_d = d
+                if d > r:
+                    r = d
                     max_point = i
         # Values for the new cluster
         radius[stack.size-1] = r
