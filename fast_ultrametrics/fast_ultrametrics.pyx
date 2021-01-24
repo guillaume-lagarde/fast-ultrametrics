@@ -138,10 +138,11 @@ cpdef np.ndarray[DTYPE_t, ndim=2] mst(DTYPE_t[:, ::1] points, graph):
     return mst
 
 # Exact mst using Prim algorithm on the complete graph
+# If maximal = True, compute the Maximum weight spanning tree instead
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef np.ndarray[ITYPE_t, ndim=2] exact_mst(DTYPE_t[:, ::1] points):
+cpdef np.ndarray[ITYPE_t, ndim=2] exact_mst(DTYPE_t[:, ::1] points, bool maximal=False):
     cdef ITYPE_t pivot, e, u, smallest_index
     cdef DTYPE_t d, smallest_dist
     cdef ITYPE_t N = points.shape[0]
@@ -149,7 +150,11 @@ cpdef np.ndarray[ITYPE_t, ndim=2] exact_mst(DTYPE_t[:, ::1] points):
     cdef DTYPE_t[::1] dist_to_set = np.full(N, np.inf, dtype=DTYPE) # set to -1 if already in set
     cdef ITYPE_t[::1] closest_in_set = np.zeros(N, dtype=ITYPE)
     mst = np.zeros(shape=(N-1, 2), dtype=ITYPE)
-      
+
+    cdef DTYPE_t sign = 1.
+    if maximal:
+        sign = -1.
+    
     # Initialization
     pivot = 0
     
@@ -160,7 +165,7 @@ cpdef np.ndarray[ITYPE_t, ndim=2] exact_mst(DTYPE_t[:, ::1] points):
         # Update and find minimum
         for u in range(N):
             if dist_to_set[u] != -1.: # If u is not already in the tree
-                d = dist(points[u], points[pivot], dim)
+                d = dist(points[u], points[pivot], dim) * sign
                 if d < dist_to_set[u]:
                     dist_to_set[u] = d
                     closest_in_set[u] = pivot
@@ -199,6 +204,7 @@ cpdef void sort_edges(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] edges):
         edge_dist[i] = dist(points[edges[i][0]], points[edges[i][1]], dim)
 
     if not is_sorted(edge_dist):
+#        print("Warning: Unsorted MST")
         order = edge_dist.argsort()
         edges_copy = np.array(edges)
         for i in range(m):
@@ -245,6 +251,67 @@ def cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
         # Expression of the 3-approximation of the cut-weight
         result_c[i] = dist_c0_to_cluster1 + radius[c0]      
 
+        # Test
+#        m = 0.
+#        u = c0
+#        while True:
+#            v = c1
+#            while True:
+#                d = dist(points[u], points[v], dim)
+#                m = max(m, d)
+#                v = sets.succ[v]
+#                if v == c1: break
+#            u = sets.succ[u]
+#            if u == c0: break
+#        m2 = result_c[i]
+#        assert(m2 >= m)
+#        assert(m2 <= m * 3.)
+        
+        # Perform the union and update the radius
+        assert( sets.union(c0, c1) == c0 )
+        radius[c0] = max(radius[c0], dist_c0_to_cluster1)
+    return result
+
+# 5-approximation of the cut-weight
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+def old_cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
+    cdef ITYPE_t N = points.shape[0]
+    cdef ITYPE_t dim = points.shape[1]
+
+    cdef DTYPE_t[:] radius = np.zeros(N, dtype=DTYPE)
+    cdef ITYPE_t c0, c1, v, i
+    cdef DTYPE_t d, dist_c0_to_cluster1
+
+    sets = UnionFind(N)
+    result = np.zeros(N - 1, dtype=DTYPE)
+    cdef DTYPE_t[:] result_c = result
+
+    # Sort the mst if needed
+    sort_edges(points, mst)
+
+    for i in range(N-1):
+        c0 = sets.find(mst[i][0])
+        c1 = sets.find(mst[i][1])
+        if sets.size[c0] < sets.size[c1]:
+            c0, c1 = c1, c0
+
+        # Compute the maximum distance between c0 and points of the other cluster
+        dist_c0_to_cluster1 = 0.
+        # For each v in the cluster of c1..
+        v = c1
+        while True:
+            d = dist(points[c0], points[v], dim)
+            if d > dist_c0_to_cluster1:
+                dist_c0_to_cluster1 = d
+            v = sets.succ[v]
+            if v == c1: break
+
+        # Expression of the 5-approximation of the cut-weight
+        d = dist(points[c0], points[c1], dim)
+        result_c[i] = 5 * max(d, radius[c0] - d, radius[c1] - d)
+
         # Perform the union and update the radius
         assert( sets.union(c0, c1) == c0 )
         radius[c0] = max(radius[c0], dist_c0_to_cluster1)
@@ -273,6 +340,9 @@ def exact_cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
         c0 = sets.find(mst[e][0])
         c1 = sets.find(mst[e][1])
 
+        #if sets.size[c0] < sets.size[c1]:
+        #    c0, c1 = c1, c0
+
         # Compute the exact cut weight
         cw = 0.
 
@@ -290,7 +360,7 @@ def exact_cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
             u = sets.succ[u]
             if u == c0: break
         result_c[e] = cw
-          
+        
         sets.union(c0, c1)
     return result
 
@@ -386,7 +456,7 @@ cdef class ArrayStack():
         self.size -= 1
 
 # Estimate the cut-weight by fitting the clusters into bounding-balls
-# This gives a sqrt(2 + epsilon)-approximation of cut-weights
+# This gives a (sqrt(2) + epsilon)-approximation of cut-weights
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
@@ -420,7 +490,6 @@ cpdef cut_weight_bounding_ball(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst, DTYP
             break
     cdef ITYPE_t core_set_max_size = int(2. * np.log(d_max/d_min) / np.log(1 + eps**2)) + 1
     cdef ITYPE_t capacity = min(N, max_stack * core_set_max_size)
-    print(capacity)
     
     cdef DTYPE_t[:, ::1] centers = np.zeros(shape=(max_stack, dim), dtype=DTYPE) # Centers of bounding balls
     cdef DTYPE_t[::1] boundind_ball_radius = np.zeros(max_stack, dtype=DTYPE) # Radius of bounding ball
@@ -462,9 +531,17 @@ cpdef cut_weight_bounding_ball(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst, DTYP
 
         # Expression of the (sqrt(2)+eps)-approximation of the cutweight
         result_c[edge] = max_d + radius[stack.size-1]
+        r = max(r, max_d)
 
-        if max_d > r:
-            r = max_d
+        # Test
+#        m = 0.
+#        for i in range(start, mid):
+#            for j in range(mid, end):
+#                d = dist(points[index[i]], points[index[j]], dim)
+#                m = max(m, d)
+#        m2 = result_c[edge]
+#        assert(m2 >= m)
+#        assert(m2 <= m * (1.42 + eps))
         
         while r > boundind_ball_radius[stack.size-1] * (1. + eps):
             stack.push_array(points[max_point])
@@ -657,7 +734,7 @@ cdef ITYPE_t pre_hash(DTYPE_t[::1] point):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef set spanner(DTYPE_t[:, ::1] points, scale_factor=2, d_min=0.001, lsh='balls'):
+cpdef set spanner(DTYPE_t[:, ::1] points, scale_factor=2, d_min=0.001, lsh='lipschitz'):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
     cdef set graph = set()
@@ -703,7 +780,7 @@ cpdef np.ndarray[DTYPE_t, ndim=2] single_linkage_label(ITYPE_t[:, :] mst, DTYPE_
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-def ultrametric(points, d_min=0.01, scale_factor = 1.1, lsh='balls', cut_weights='approximate'):
+def ultrametric(points, d_min=0.001, scale_factor = 1.1, lsh='balls', cut_weights='approximate'):
     '''
     Compute the ultrametric
     points: the set of points as a ndarray of shape (n,d) where n is the number of points, d the dimension of the space.
@@ -723,10 +800,20 @@ def ultrametric(points, d_min=0.01, scale_factor = 1.1, lsh='balls', cut_weights
         MST = mst(points, edges)
     if cut_weights == 'approximate':
         CW = cut_weight(points, MST)
+    elif cut_weights == '5-approx':
+        CW = old_cut_weight(points, MST)
     elif cut_weights == 'exact':
         CW = exact_cut_weight(points, MST)
     elif cut_weights == 'bounding balls':
         CW = cut_weight_bounding_ball(points, MST)
     else:
         raise ValueError('cut_weights must be "approximate", "exact" or "bounding balls"')
+    # checks
+#    CW_test = exact_cut_weight(points, MST)
+#    m = 0.
+#    for i in range(len(CW)):
+#        if CW_test[i] != 0. :
+#            m = max(m, CW[i]/CW_test[i])
+#    print("cw", m)
+    
     return single_linkage_label(MST,CW)

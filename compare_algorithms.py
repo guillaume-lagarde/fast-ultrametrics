@@ -9,10 +9,10 @@ from scipy.sparse.csgraph import minimum_spanning_tree
 import numpy as np
                 
 class Algo:
-    def __init__(self, N = 20):
+    def __init__(self, N = 1):
         self.data = []
         self.N = N # Number of iterations for each parameter
-    def test(self, X, mst):
+    def test(self, X, mMst):
         for p in self.params:
             dist = 0
             chrono = 0
@@ -22,7 +22,7 @@ class Algo:
                 chrono -= time.perf_counter()
                 result = self.run(p, X)
                 chrono += time.perf_counter()
-                dist += distortion_with_mst(X, mst, result)
+                dist += distortion_with_mst(X, mMst, result)
             self.data.append((p, dist/self.N, chrono/self.N))
 
 common_params = [1.05, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.8]
@@ -95,7 +95,7 @@ class AlgoBoundingBall(Algo):
 def compare(name):
     file_name = "datasets/"+name+".csv"
     X = np.genfromtxt(file_name, delimiter=",")
-    mst = np.load(mst_file(file_name))
+    mMst = np.load(mst_file(file_name))
     print(X.shape)
 
     for algo in [
@@ -107,7 +107,7 @@ def compare(name):
             AlgoBoundingBall(),
             AlgoMSTBoundingballs(),
     ]:
-        algo.test(X, mst)
+        algo.test(X, mMst)
 
         plt.plot([t for (_, _, t) in algo.data], [d for (_, d, _) in algo.data],
                  label=algo.name,

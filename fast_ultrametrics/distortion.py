@@ -1,6 +1,9 @@
-import math, random
+
+import math, random, sys
+from itertools import chain
 import numpy as np
 from pathlib import Path
+from fast_ultrametrics import *
 
 # input: array left cluster, right cluster, delta, size subtree
 def infix_order(tree):
@@ -23,36 +26,6 @@ def infix_order(tree):
         depth+=1
             
     return res
-
-# OLD one
-# class RMQ:
-#     def __init__(self, tree):
-#         order = infix_order(tree)
-#         self.tree = tree
-#         self.n = len(tree)+1
-#         self.depth = [x for (_,x) in order]
-#         self.indices = [x for (x,_) in order]
-#         self.positions = [0]*len(order)
-#         for t, i in enumerate(self.indices):
-#             self.positions[i] = t
-
-#     def search(self, u, v):
-#         iu, iv = self.positions[u], self.positions[v]
-#         if iu > iv:
-#             iu, iv = iv, iu
-#         im = iu
-#         m = self.depth[im]
-#         for i in range(iu+1, iv+1):
-#             mc = self.depth[i]
-#             if mc < m:
-#                 im, m = i, mc
-#         return self.indices[im]
-
-#     def dist(self, u, v):
-#         if u!= v:
-#             return self.tree[self.search(u, v)- self.n][2]
-#         return 0
-
 
 class RMQ:
     def __init__(self, tree):
@@ -101,24 +74,11 @@ def dist(a, b):
     assert(len(a) == len(b))
     return math.sqrt(sum( (x-y)**2 for x, y in zip(a, b) ))
     
-def distortion(data, tree):
-    rmq = RMQ(tree)
-    n = len(data)
-    MAX, MIN = 0., 1000.
-    for i in range(n):
-        for j in range(i):
-            l2 = dist(data[i], data[j])
-            assert(rmq.dist(i, j) >= l2)
-            ratio = rmq.dist(i, j) / l2
-            MAX = max(ratio, MAX)
-            MIN = min(ratio, MIN)
-    return MAX/MIN
-
 def fast_distortion(data, tree, nsample=10000):
     rmq = RMQ(tree)
     n = len(data)
 
-    MAX, MIN = 1., 1000.
+    MAX, MIN = 0.1, 10000.
     for _ in range(nsample):
         i = random.randrange(n)
         j = random.randrange(n)
@@ -128,8 +88,6 @@ def fast_distortion(data, tree, nsample=10000):
             MAX = max(ratio, MAX)
             MIN = min(ratio, MIN)
     return MAX/MIN
-
-
     
 def average_distortion(data, tree, nsample=10000):
     rmq = RMQ(tree)
@@ -150,19 +108,77 @@ def average_distortion(data, tree, nsample=10000):
                 MIN = min(ratio, MIN)
     return (S/N)*(1/MIN)
 
+def distortion(data, tree):
+    rmq = RMQ(tree)
+    n = len(data)
+    MAX, MIN = 0., sys.float_info.max
+    for i in range(n):
+        for j in range(i):
+            l2 = dist(data[i], data[j])
+            if l2 > 0.:
+                ratio = rmq.dist(i, j) / l2
+                MAX = max(ratio, MAX)
+                MIN = min(ratio, MIN)
+    assert(rmq.dist(i, j) >= l2)
+    return MAX/MIN
+
 def mst_file(dataset_name: str):
     MST_DIR = "mst/"
     return MST_DIR + Path(dataset_name).stem + ".mst.npy"
 
-def distortion_with_mst(data, mst: np.ndarray, tree):
+def distortion_with_mst(data, mMst: (np.array, np.array), tree):
     rmq = RMQ(tree)
+    mst, Mst = mMst
     n = len(data)
     assert(mst.shape == (n-1, 2))
-    MAX, MIN = 0., 1000.
+    assert(Mst.shape == (n-1, 2))
+    MAX, MIN = 0., sys.float_info.max
+    for i, j in chain(mst, Mst):
+        l2 = dist(data[i], data[j])
+        if l2 > 0.:
+            ratio = rmq.dist(i, j) / l2
+            MAX = max(ratio, MAX)
+            MIN = min(ratio, MIN)
+#    assert(MAX/MIN == distortion(data, tree))
+    return MAX/MIN
+
+def fast_distortion(data, tree, nsample=10000):
+    rmq = RMQ(tree)
+    n = len(data)
+
+    MAX, MIN = 0.1, 10000.
+    for _ in range(nsample):
+        i = random.randrange(n)
+        j = random.randrange(n)
+        if i != j:
+            l2 = dist(data[i], data[j])
+            if l2 > 0.:
+                ratio = rmq.dist(i, j) / l2
+                MAX = max(ratio, MAX)
+                MIN = min(ratio, MIN)
+    return MAX/MIN
+
+def weight(data, tree: np.ndarray) -> float:
+    n = data.shape[0]
+    assert(tree.shape == (n-1, 2))
+    res = 0.
+    for i, j in tree:
+        res += dist(data[i], data[j])
+    return res
+
+def compute_gamma(data, mst: np.ndarray, spanning_tree: np.ndarray):
+    assert(weight(data, mst) <= weight(data, spanning_tree) + 0.000001)
+    
+    # Compute the single linkage
+    weights = np.array([dist(data[i], data[j]) for i, j in spanning_tree])
+    tree = single_linkage_label(spanning_tree, weights)
+    
+    rmq = RMQ(tree)
+    n = len(data)
+    MAX = 0.,
     for i, j in mst:
         l2 = dist(data[i], data[j])
         assert(rmq.dist(i, j) >= l2)
         ratio = rmq.dist(i, j) / l2
         MAX = max(ratio, MAX)
-        MIN = min(ratio, MIN)
-    return MAX/MIN
+    return MAX

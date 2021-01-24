@@ -162,7 +162,23 @@ class TestSum(unittest.TestCase):
                       [ 8., 4.,  80., 5.],
                       [ 9., 5., 125., 6.]])
         tree = ultrametric(P)
-        well_formed_tree(tree)        
+        well_formed_tree(tree)
+
+    def test_gamma(self):
+        P = np.array([[ 0., 1.,   5., 2.],
+                      [ 6., 2.,  20., 3.],
+                      [ 7., 3.,  45., 4.],
+                      [ 8., 4.,  80., 5.],
+                      [ 2., 1.,   5., 2.],
+                      [ 4., 2.,  20., 3.],
+                      [ 6., 3.,  45., 4.],
+                      [ 7., 4.,  80., 5.],
+                      [ 1., 5., 125., 6.]])
+        mst = exact_mst(P)
+        Mst = exact_mst(P, maximal=True)
+        other_st = np.array( [ [i, i+1] for i in range(len(P)-1) ])
+        self.assertEqual(compute_gamma(P, mst, mst), 1.)
+        compute_gamma(P, mst, other_st)
 
 def well_formed_tree(tree):
     n = len(tree) + 1
