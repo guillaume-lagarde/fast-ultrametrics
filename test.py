@@ -46,6 +46,12 @@ class TestSum(unittest.TestCase):
         MST = mst(P, edges)
         expected = [[1, 4], [0, 4], [3, 4], [1, 2]]
         self.assertEqual([ list(edge) for edge in MST ], expected)
+        # Prim mst
+        all_edges = [(i, j) for j in range(len(P)) for i in range(j)]
+        MST = mst(P, all_edges)
+        MST2 = exact_mst(P)
+        self.assertEqual(sorted([sorted(list(e)) for e in MST2 ]),
+                         sorted([sorted(list(e)) for e in MST ]))
 
     def test_sort_edges(self):
         t = np.array([-1., 0., 24., 42.])

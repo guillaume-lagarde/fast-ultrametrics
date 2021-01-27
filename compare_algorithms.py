@@ -9,7 +9,7 @@ from scipy.sparse.csgraph import minimum_spanning_tree
 import numpy as np
                 
 class Algo:
-    def __init__(self, N = 1):
+    def __init__(self, N = 3):
         self.data = []
         self.N = N # Number of iterations for each parameter
     def test(self, X, mMst):
@@ -25,7 +25,7 @@ class Algo:
                 dist += distortion_with_mst(X, mMst, result)
             self.data.append((p, dist/self.N, chrono/self.N))
 
-common_params = [1.05, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.8]
+common_params = [1.03, 1.05, 1.1, 1.2, 1.3, 1.4, 1.5]
             
 class AlgoBall(Algo):
     def __init__(self):
@@ -52,7 +52,7 @@ class AlgoExp(Algo):
         self.params = common_params
         
     def run(self, p, X):
-        return ultrametric(X, scale_factor=p, lsh='experimental')
+        return ultrametric(X, scale_factor=p, lsh='experimental', cut_weights='bounding balls')
 
 class AlgoMST(Algo):
     def __init__(self, N=1):
@@ -100,7 +100,7 @@ def compare(name):
 
     for algo in [
 #            AlgoBall(),
-#            AlgoExp(),
+            AlgoExp(),
             AlgoLip(),
             AlgoExact(),
             AlgoMST(),
@@ -120,9 +120,9 @@ if __name__ == '__main__':
     import timeit
 
     
-#    compare("SHUTTLE")
+    compare("SHUTTLE")
 #    compare("MICE")
-    compare("IRIS")
+#    compare("IRIS")
 #    compare("DIABETES")
 #    compare("PENDIGITS")
 #

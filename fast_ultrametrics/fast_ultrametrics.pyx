@@ -9,7 +9,7 @@ from libc.math cimport sqrt, round
 import random
 from libcpp cimport bool
 
-import cyminiball 
+import cyminiball
 
 # Numpy must be initialized.
 np.import_array()
@@ -137,39 +137,42 @@ cpdef np.ndarray[DTYPE_t, ndim=2] mst(DTYPE_t[:, ::1] points, graph):
     assert(count == N-1)
     return mst
 
+@cython.nonecheck(False)
+cdef bool xor(a:bool, b: bool):
+    if a:
+        return not b
+    else:
+        return b
+
 # Exact mst using Prim algorithm on the complete graph
-# If maximal = True, compute the Maximum weight spanning tree instead
+# If maximal = True, compute the Maximum weight spanning tree instead#
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef np.ndarray[ITYPE_t, ndim=2] exact_mst(DTYPE_t[:, ::1] points, bool maximal=False):
+cpdef np.ndarray[ITYPE_t, ndim=2] exact_mst(DTYPE_t[:, ::1] points, maximal=False):
     cdef ITYPE_t pivot, e, u, smallest_index
     cdef DTYPE_t d, smallest_dist
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
-    cdef DTYPE_t[::1] dist_to_set = np.full(N, np.inf, dtype=DTYPE) # set to -1 if already in set
+    cdef DTYPE_t[::1] dist_to_set = np.zeros(N, dtype=DTYPE) # set to -1 if already in set
     cdef ITYPE_t[::1] closest_in_set = np.zeros(N, dtype=ITYPE)
     mst = np.zeros(shape=(N-1, 2), dtype=ITYPE)
 
-    cdef DTYPE_t sign = 1.
-    if maximal:
-        sign = -1.
-    
     # Initialization
     pivot = 0
     
     for e in range(N-1):
         dist_to_set[pivot] = -1. # Mark the pivot as already in the tree
-        smallest_dist = np.inf
+        smallest_dist = -1.
         smallest_index = -1
         # Update and find minimum
         for u in range(N):
             if dist_to_set[u] != -1.: # If u is not already in the tree
-                d = dist(points[u], points[pivot], dim) * sign
-                if d < dist_to_set[u]:
+                d = dist(points[u], points[pivot], dim)
+                if e == 0 or xor(d < dist_to_set[u], maximal) : # switch the order if maximal is True
                     dist_to_set[u] = d
                     closest_in_set[u] = pivot
-                if dist_to_set[u] < smallest_dist:
+                if smallest_index == -1 or xor(dist_to_set[u] < smallest_dist, maximal):
                     smallest_dist = dist_to_set[u]
                     smallest_index = u
         # Add the edge
@@ -204,7 +207,6 @@ cpdef void sort_edges(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] edges):
         edge_dist[i] = dist(points[edges[i][0]], points[edges[i][1]], dim)
 
     if not is_sorted(edge_dist):
-#        print("Warning: Unsorted MST")
         order = edge_dist.argsort()
         edges_copy = np.array(edges)
         for i in range(m):
@@ -332,16 +334,13 @@ def exact_cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
     sets = UnionFind(N)
     result = np.zeros(N - 1, dtype=DTYPE)
     cdef DTYPE_t[:] result_c = result
-
+    
     # Sort the mst in place if needed
     sort_edges(points, mst)
 
     for e in range(N-1):
         c0 = sets.find(mst[e][0])
         c1 = sets.find(mst[e][1])
-
-        #if sets.size[c0] < sets.size[c1]:
-        #    c0, c1 = c1, c0
 
         # Compute the exact cut weight
         cw = 0.
@@ -355,6 +354,8 @@ def exact_cut_weight(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst):
                 d = dist(points[u], points[v], dim)
                 if d > cw:
                     cw = d
+                    max_u = u
+                    max_v = v
                 v = sets.succ[v]
                 if v == c1: break
             u = sets.succ[u]
@@ -693,33 +694,56 @@ cpdef lsh_balls(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, graph):
 @cython.nonecheck(False)
 @cython.wraparound(False)
 cpdef ITYPE_t lsh_experimental(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, graph):
-    cdef ITYPE_t U = 4*t*2**t
-    cdef DTYPE_t[:, ::1] shifts = np.random.uniform(0, 1, size=(U, t))
+    cdef DTYPE_t[::1] shifts = np.random.uniform(0, 1, size=t)
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
-    cdef DTYPE_t girth = 4 * w
-    A = np.random.normal(size=(dim, t)) / (sqrt(t) * girth) # everything is normalized by 4w 
+    cdef ITYPE_t[::1] succ = np.full(N, -1, dtype=ITYPE)
+    cdef DTYPE_t[::1] d = np.zeros(shape=N, dtype=DTYPE)
+    A = np.random.normal(size=(dim, t)) / (sqrt(t) * 2 * w)
     cdef DTYPE_t[:, ::1] proj = points @ A 
-    cdef ITYPE_t i, j, l, u, n, bucket_center
+    cdef ITYPE_t i, j, u, n, bucket_center, l
     
     cdef dict buckets = {}
     cdef DTYPE_t[::1] center = np.zeros(shape=t)
     cdef DTYPE_t shift
     
     for i in range(N):
-        for u in range(U):
-            for j in range(t):
-                shift = shifts[u][j]
-                center[j] = round(proj[i][j] - shift) + shift
-            if dist(center, proj[i], t) <= 0.25:
-                bucket_center = buckets.setdefault(pre_hash(center), i)
-                if bucket_center != i:
-                    if i < bucket_center:
-                        graph.add((i, bucket_center))
-                    else:
-                        graph.add((bucket_center, i))
-                break
+        for j in range(t):
+            center[j] = round(proj[i][j] - shifts[j])
+        bucket_center = buckets.setdefault(pre_hash(center), i)
+        if i == bucket_center:
+            succ[i] = i
+        else:
+            succ[i] = succ[bucket_center]
+            succ[bucket_center] = i
+        d[i] = dist(center, proj[i], t)
+
+    cdef DTYPE_t min_d
+    cdef ITYPE_t succ_j
+    for i in range(N):
+        if succ[i] != -2:
+            min_d = d[i]
+            u = i
+            j = succ[i]
+            while j != i:
+                assert(j != -2)
+                if d[j] < min_d:
+                    min_d = d[j]
+                    u = j
+                j = succ[j]
+            j = succ[u]
+            succ[u] = -2
+            while j != u:
+                assert(j != -2)
+                if j < u:
+                    graph.add((j, u))
+                else:
+                    graph.add((u, j))
+                succ_j = succ[j]
+                succ[j] = -2
+                j = succ_j
     return len(buckets)
+
       
 # Experimental hash for tests # scikitlearn has a murmurhash module for fast hashing
 cdef ITYPE_t pre_hash(DTYPE_t[::1] point):
@@ -746,10 +770,10 @@ cpdef set spanner(DTYPE_t[:, ::1] points, scale_factor=2, d_min=0.001, lsh='lips
             t = min(max(1, np.log2(N)**(2./3.)), dim)
             bucket_count = lsh_balls(scale, t, points, graph)
         elif lsh == 'lipschitz':
-            t = min(max(1, np.log2(N)), dim)
+            t = min(max(1, np.log2(N) ), dim)
             bucket_count = lsh_lipschitz(scale, t, points, graph)
         elif lsh == 'experimental':
-            t = min(max(1, np.log2(N)**(2./3.)), dim)
+            t = min(max(1, np.log2(N)), dim)
             bucket_count = lsh_experimental(scale, t, points, graph)
         else:
             raise ValueError('lsh must be "lipschitz", "balls" or "exact"')
@@ -808,12 +832,5 @@ def ultrametric(points, d_min=0.001, scale_factor = 1.1, lsh='balls', cut_weight
         CW = cut_weight_bounding_ball(points, MST)
     else:
         raise ValueError('cut_weights must be "approximate", "exact" or "bounding balls"')
-    # checks
-#    CW_test = exact_cut_weight(points, MST)
-#    m = 0.
-#    for i in range(len(CW)):
-#        if CW_test[i] != 0. :
-#            m = max(m, CW[i]/CW_test[i])
-#    print("cw", m)
     
     return single_linkage_label(MST,CW)

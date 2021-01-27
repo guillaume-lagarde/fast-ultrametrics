@@ -1,5 +1,4 @@
-# Compute the minimal and maximal
-# spanning trees of the dataset in argv[0] and save it in a numpy file
+# Compute the mst of the dataset in argv[0] and save it in a numpy file
 import sys
 from fast_ultrametrics import *
 from fast_ultrametrics.distortion import *
@@ -16,6 +15,6 @@ X = np.genfromtxt(file, delimiter=",")
 print("data shape: ", X.shape)
 
 mst = exact_mst(X)
-Mst = exact_mst(X, maximal=True)
-np.save(target, (mst, Mst))
+
+np.save(target, mst)
 print("mst saved in " + str(target))

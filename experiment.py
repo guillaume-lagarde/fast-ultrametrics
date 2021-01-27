@@ -1,11 +1,12 @@
 from fast_ultrametrics import *
 from fast_ultrametrics.distortion import *
-from scipy.cluster.hierarchy import linkage
 
 import matplotlib.pyplot as plt
 import random
 import time
 import scipy
+import fastcluster
+from sklearn.cluster import AgglomerativeClustering
 from scipy.sparse.csgraph import minimum_spanning_tree
 import numpy as np
                 
@@ -14,7 +15,7 @@ class Algo:
         self.data = []
         self.deterministic = deterministic
         self.rescale = rescale
-    def test(self, X, mst, N=3):
+    def test(self, X, mst, N=10):
         if self.deterministic:
             N=1
         for i in range(1):
@@ -27,13 +28,14 @@ class Algo:
                 result = self.run(X)
                 chrono += time.perf_counter()
                 if self.rescale:
-                    dist += fast_distortion_with_mst(X, mst, result, nsample=100000)
+                    dist += distortion(X, result)
                 else:
                     dist += distortion_with_mst(X, mst, result)
-            self.data.append(((), dist/N, chrono/N))
+            self.data.append((chrono/N, dist/N))
+        print(self.data)
 
 common_params = [1.05, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.8]
-p_default = 1.8
+p_default = 2.
 
 class AlgoMST(Algo):
     def __init__(self):
@@ -52,8 +54,8 @@ class AlgoMSTBB(Algo):
         return ultrametric(X, lsh='exact', cut_weights='bounding balls')
     
 class AlgoCKL(Algo):
-    def __init__(self, p=p_default):
-        Algo.__init__(self, rescale=True)
+    def __init__(self, p=p_default, rescale=True):
+        Algo.__init__(self)
         self.name = 'Cohen-Addad, Karthik, Lagarde (p={})'.format(p)
         self.p = p
         
@@ -88,13 +90,38 @@ class AlgoExact(Algo):
 
 class AlgoSKL(Algo):
     def __init__(self, algo):
-        Algo.__init__(self, rescale=True, deterministic=True)
+        Algo.__init__(self, deterministic=True, rescale=True)
         self.name = "scikitlrearn: {}".format(algo)
         self.algo = algo
         
     def run(self, X):
-        return linkage(X, self.algo)
+        model = AgglomerativeClustering(distance_threshold=0, n_clusters=None, linkage=self.algo)
+        clusters = model.fit(X)
 
+        counts = np.zeros(clusters.children_.shape[0])
+        n_samples = len(clusters.labels_)
+        for i, merge in enumerate(model.children_):
+            current_count = 0
+            for child_idx in merge:
+                if child_idx < n_samples:
+                    current_count += 1  # leaf node
+                else:
+                    current_count += counts[child_idx - n_samples]
+            counts[i] = current_count
+
+        linkage_matrix = np.column_stack([clusters.children_, clusters.distances_,
+                                          counts]).astype(float)
+        return linkage_matrix
+
+class AlgoFastCluster(Algo):
+    def __init__(self, algo):
+        Algo.__init__(self, deterministic=True, rescale=True)
+        self.name = "fastcluster: {}".format(algo)
+        self.algo = algo
+    
+    def run(self, X):
+        return fastcluster.linkage_vector(X, method=self.algo)
+    
 def compare(name):
     file_name = "datasets/"+name+".csv"
     X = np.genfromtxt(file_name, delimiter=",")
@@ -102,9 +129,9 @@ def compare(name):
     print(X.shape)
 
     for algo in [
-            AlgoCKL(),
-            AlgoExact(),
-            AlgoMSTBB(),
+#            AlgoCKL(),
+#            AlgoExact(),
+#            AlgoMSTBB(),
 #            Algo3(),
 #            AlgoMST(),
             AlgoNew(),
@@ -112,9 +139,13 @@ def compare(name):
 #            AlgoSKL('single'),
 #            AlgoSKL('average'),
 #            AlgoSKL('complete'),
+            AlgoFastCluster('ward'),
+            AlgoFastCluster('single'),
+            AlgoFastCluster('centroid'),
+            AlgoFastCluster('median'),
     ]:
         algo.test(X, mst)
-        plt.plot([t for (_, _, t) in algo.data], [d for (_, d, _) in algo.data],
+        plt.plot([x for (x, _) in algo.data], [y for (_, y) in algo.data],
                  label=algo.name,
                  marker='o',
         )
@@ -124,10 +155,10 @@ def compare(name):
 if __name__ == '__main__':
     import timeit
 
-    
+#    compare("blobsN10000d100")
 #    compare("SHUTTLE")
-    compare("MICE")
+#    compare("MICE")
 #    compare("IRIS")
 #    compare("DIABETES")
-#    compare("PENDIGITS")
-#
+    compare("PENDIGITS")
+##

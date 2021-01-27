@@ -82,6 +82,6 @@ if __name__ == '__main__':
 #    compare("SHUTTLE")
 #    compare("MICE")
 #    compare("IRIS")
-#    compare("DIABETES")
-    compare("PENDIGITS")
+    compare("DIABETES")
+#    compare("PENDIGITS")
 #

@@ -119,27 +119,25 @@ def distortion(data, tree):
                 ratio = rmq.dist(i, j) / l2
                 MAX = max(ratio, MAX)
                 MIN = min(ratio, MIN)
-    assert(rmq.dist(i, j) >= l2)
     return MAX/MIN
 
 def mst_file(dataset_name: str):
     MST_DIR = "mst/"
     return MST_DIR + Path(dataset_name).stem + ".mst.npy"
 
-def distortion_with_mst(data, mMst: (np.array, np.array), tree):
+def distortion_with_mst(data, mst: np.array, tree):
     rmq = RMQ(tree)
-    mst, Mst = mMst
     n = len(data)
     assert(mst.shape == (n-1, 2))
-    assert(Mst.shape == (n-1, 2))
     MAX, MIN = 0., sys.float_info.max
-    for i, j in chain(mst, Mst):
+    for i, j in mst:
         l2 = dist(data[i], data[j])
+        ultra = rmq.dist(i, j)
+        assert(ultra >= l2 * 0.9999)
         if l2 > 0.:
-            ratio = rmq.dist(i, j) / l2
+            ratio = ultra / l2
             MAX = max(ratio, MAX)
             MIN = min(ratio, MIN)
-#    assert(MAX/MIN == distortion(data, tree))
     return MAX/MIN
 
 def fast_distortion(data, tree, nsample=10000):
