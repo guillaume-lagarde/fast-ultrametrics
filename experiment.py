@@ -15,27 +15,30 @@ class Algo:
         self.data = []
         self.deterministic = deterministic
         self.rescale = rescale
-    def test(self, X, mst, N=10):
+    def test(self, X, mst, N=20):
         if self.deterministic:
             N=1
         for i in range(1):
             dist = 0
             chrono = 0
-            print(self.name)
             for i in range(N):
-                print("{}/{}".format(i+1, N))
+                print("{}/{}".format(i+1, N), flush=True, end=" ")
+                if i == N-1: print()
                 chrono -= time.perf_counter()
                 result = self.run(X)
                 chrono += time.perf_counter()
+                #
                 if self.rescale:
-                    dist += distortion(X, result)
+                    dist += distortion_(X, result)
                 else:
                     dist += distortion_with_mst(X, mst, result)
             self.data.append((chrono/N, dist/N))
-        print(self.data)
+        #print(self.data)
+        print('"{}" {} {}'.format(self.name, self.data[0][1], self.data[0][0]))
+        
 
 common_params = [1.05, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.8]
-p_default = 2.
+p_default = 1.2
 
 class AlgoMST(Algo):
     def __init__(self):
@@ -44,6 +47,14 @@ class AlgoMST(Algo):
         
     def run(self, X):
         return ultrametric(X, lsh='exact')
+    
+class AlgoMSTCKL(Algo):
+    def __init__(self):
+        Algo.__init__(self, deterministic=True, rescale=True)
+        self.name = 'MST + Cohen-Addad, Karthik, Lagarde'
+        
+    def run(self, X):
+        return ultrametric(X, lsh='exact', cut_weights='5-approx')
     
 class AlgoMSTBB(Algo):
     def __init__(self):
@@ -129,12 +140,14 @@ def compare(name):
     print(X.shape)
 
     for algo in [
-#            AlgoCKL(),
+            AlgoNew(p=1.2),
+            AlgoCKL(p=1.2),
 #            AlgoExact(),
 #            AlgoMSTBB(),
-#            Algo3(),
+            AlgoMSTCKL(),
+#            Algo3(p=1.2),
 #            AlgoMST(),
-            AlgoNew(),
+#            AlgoNew(),
 #            AlgoSKL('ward'),
 #            AlgoSKL('single'),
 #            AlgoSKL('average'),
@@ -155,10 +168,10 @@ def compare(name):
 if __name__ == '__main__':
     import timeit
 
-#    compare("blobsN10000d100")
+    compare("blobsN10000d100")
 #    compare("SHUTTLE")
 #    compare("MICE")
 #    compare("IRIS")
 #    compare("DIABETES")
-    compare("PENDIGITS")
+#    compare("PENDIGITS")
 ##

@@ -138,7 +138,7 @@ def distortion_with_mst(data, mst: np.array, tree):
             ratio = ultra / l2
             MAX = max(ratio, MAX)
             MIN = min(ratio, MIN)
-    return MAX/MIN
+    return MAX #MAX/MIN
 
 def fast_distortion(data, tree, nsample=10000):
     rmq = RMQ(tree)

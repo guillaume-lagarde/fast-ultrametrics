@@ -1,3 +1,7 @@
+# cython: boundscheck=False, initializedcheck=False, wraparound=False, nonecheck=False, overflowcheck=False, cdivision=True, infer_types=True
+# distutils: language = c++
+
+# cython: language_level=3
 # cython: profile=True
 # cython: linetrace=True
 from __future__ import print_function
@@ -5,9 +9,13 @@ from __future__ import print_function
 import numpy as np
 cimport numpy as np
 cimport cython
-from libc.math cimport sqrt, round
+from libc.math cimport sqrt, round, log2, floor
 import random
 from libcpp cimport bool
+from libcpp.map cimport map
+from libcpp.vector cimport vector
+from libcpp.pair cimport pair
+from cython.operator cimport dereference, preincrement
 
 import cyminiball
 
@@ -15,7 +23,6 @@ import cyminiball
 np.import_array()
 
 # C++
-
 # C types as in scikit-learn
 DTYPE = np.float64
 ctypedef np.float64_t DTYPE_t
@@ -45,14 +52,19 @@ cdef class UnionFind():
     cdef ITYPE_t union(self, ITYPE_t m, ITYPE_t n):
         cdef ITYPE_t r_m = self.find(m)
         cdef ITYPE_t r_n = self.find(n)
+        cdef ITYPE_t tmp
        
         if r_m == r_n: return -1
 
         if self.size[r_m] >= self.size[r_n]:
-            r_n, r_m = r_m, r_n
+            tmp = r_n
+            r_n = r_m
+            r_m = tmp
         self.parent[r_m] = r_n
         self.size[r_n] += self.size[r_m]
-        self.succ[r_m], self.succ[r_n] = self.succ[r_n], self.succ[r_m]
+        tmp = self.succ[r_m]
+        self.succ[r_m] = self.succ[r_n]
+        self.succ[r_n] = tmp
             
         return r_n
 
@@ -98,38 +110,52 @@ cdef DTYPE_t dist_max(DTYPE_t[:, ::1] points):
         d = dist(points[i], points[0], dim)
         if d > res:
             res = d
-    return 2. * res
+    return res
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.nonecheck(False)
+cdef np.ndarray[ITYPE_t, ndim=2] set_to_numpy_array(set graph):
+    cdef ITYPE_t m = len(graph)
+    cdef np.ndarray[ITYPE_t, ndim=2] res = np.zeros(shape=(m, 2), dtype=ITYPE)
+    cdef ITYPE_t[:, ::1] res_view = res
+    cdef ITYPE_t count = 0
+    for x in graph:
+        res_view[count][0] = x[0]
+        res_view[count][1] = x[1]
+        count += 1
+    return res
 
 #------------------------------------
 # minimum spanning tree
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.nonecheck(False)
-cpdef np.ndarray[DTYPE_t, ndim=2] mst(DTYPE_t[:, ::1] points, graph):
+cpdef np.ndarray[DTYPE_t, ndim=2] mst(DTYPE_t[:, ::1] points, set graph):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
-    cdef ITYPE_t m = len(graph)
     cdef ITYPE_t count, x, y, i
-
-    cdef ITYPE_t[:, ::1] edges = np.array(list(graph), dtype=ITYPE)
+    cdef ITYPE_t[:, ::1] edges = set_to_numpy_array(graph)
+    cdef ITYPE_t m = edges.shape[0]
 
     # Compute the order of the edges with respect to their weight
-    weight = np.zeros(shape=m, dtype=DTYPE)
+    cdef np.ndarray[DTYPE_t, ndim=1] weight = np.zeros(shape=m, dtype=DTYPE)
     cdef DTYPE_t[::1] weight_view = weight
     for i in range(m):
         weight_view[i] = dist(points[edges[i][0]], points[edges[i][1]], dim)        
     cdef ITYPE_t[::1] order = np.argsort(weight)
 
     # Kruskal algorithm
-    mst = np.zeros(shape=(N-1, 2), dtype=ITYPE)
-    U = UnionFind(N)
+    cdef np.ndarray[ITYPE_t, ndim=2] mst = np.zeros(shape=(N-1, 2), dtype=ITYPE)
+    cdef ITYPE_t[:, ::1] mst_view = mst
+    cdef UnionFind U = UnionFind(N)
     count = 0
     for i in range(len(order)):
         x = edges[order[i]][0]
         y = edges[order[i]][1]
         if U.union(x, y) != -1:
-            mst[count][0] = x
-            mst[count][1] = y
+            mst_view[count][0] = x
+            mst_view[count][1] = y
             
             count+=1
             if count == N-1:
@@ -461,8 +487,7 @@ cdef class ArrayStack():
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-@cython.boundscheck(False)
-cpdef cut_weight_bounding_ball(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst, DTYPE_t eps=0.1):
+cpdef cut_weight_bounding_ball(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst, DTYPE_t eps=0.2):
 
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
@@ -472,7 +497,7 @@ cpdef cut_weight_bounding_ball(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst, DTYP
     cdef DTYPE_t[::1] C = np.zeros(dim, dtype=DTYPE)
     cdef ITYPE_t[::1] index
     
-    sets = UnionFind(N)
+    cdef UnionFind sets = UnionFind(N)
     result = np.zeros(N - 1, dtype=DTYPE)
     cdef DTYPE_t[:] result_c = result
 
@@ -609,6 +634,15 @@ cpdef np.ndarray[DTYPE_t, ndim=2] _single_linkage_label(DTYPE_t[:, ::1] L):
 
     return result
 
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+cdef np.ndarray[DTYPE_t, ndim=2] project(DTYPE_t girth, ITYPE_t t, DTYPE_t[:, ::1] points):
+    cdef ITYPE_t dim = points.shape[1]
+    cdef scale = 1. / (sqrt(t) * girth) # everything is normalized by 2*w
+    cdef np.ndarray[DTYPE_t, ndim=2] A = np.random.normal(size=(dim, t), scale = scale)
+    return points @ A
+
 # Locality sensitive hash functions
 # The lsh_ functions compute clusters corresponding to a particular lsh
 # and add a random star on each of these clusters to the graph in input.
@@ -616,7 +650,7 @@ cpdef np.ndarray[DTYPE_t, ndim=2] _single_linkage_label(DTYPE_t[:, ::1] L):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef lsh_lipschitz(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, graph):
+cpdef lsh_lipschitz(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, set graph):
     """
     Compute a locality sensitive hashing using Lipschitz partitions
     and connect the collision clusters with a star
@@ -626,21 +660,22 @@ cpdef lsh_lipschitz(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, graph):
     """
     cdef DTYPE_t[::1] shifts = np.random.uniform(0, 1, size=t)
     cdef ITYPE_t N = points.shape[0]
-    cdef ITYPE_t dim = points.shape[1]
-    A = np.random.normal(size=(dim, t)) / (sqrt(t) * 2 * w) # everything is normalized by 2*w 
-    cdef DTYPE_t[:, ::1] proj = points @ A 
+    cdef DTYPE_t[:, ::1] proj = project(2 * w, t, points) 
     cdef ITYPE_t i, j, u, n, bucket_center, l
-    
-    cdef dict buckets = {}
-    cdef DTYPE_t[::1] center = np.zeros(shape=t)
+    cdef DTYPE_t prehash
+
+    cdef dict buckets_init = {}
+    cdef map[DTYPE_t, ITYPE_t] buckets = buckets_init
+    cdef DTYPE_t[::1] center = np.zeros(shape=t, dtype=DTYPE)
     cdef DTYPE_t shift
     cdef ITYPE_t[::1] order = np.random.permutation(N)
-    
+    cdef DTYPE_t[::1] linear_hash = np.random.random(size=t)
     for l in range(N):
         i = order[l]
         for j in range(t):
             center[j] = round(proj[i][j] - shifts[j])
-        bucket_center = buckets.setdefault(pre_hash(center), i)
+        prehash = scal_prod(center, linear_hash, t)
+        bucket_center = dereference(buckets.insert(pair[DTYPE_t,ITYPE_t](prehash, i)).first).second
         if bucket_center != i:
             if i < bucket_center:
                 graph.add((i, bucket_center))
@@ -662,10 +697,7 @@ cpdef lsh_balls(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, graph):
     cdef ITYPE_t U = 4*t*2**t
     cdef DTYPE_t[:, ::1] shifts = np.random.uniform(0, 1, size=(U, t))
     cdef ITYPE_t N = points.shape[0]
-    cdef ITYPE_t dim = points.shape[1]
-    cdef DTYPE_t girth = 4 * w
-    A = np.random.normal(size=(dim, t)) / (sqrt(t) * girth) # everything is normalized by 4w 
-    cdef DTYPE_t[:, ::1] proj = points @ A 
+    cdef DTYPE_t[:, ::1] proj = project(4 * w, t, points)
     cdef ITYPE_t i, j, l, u, n, bucket_center
     
     cdef dict buckets = {}
@@ -726,7 +758,6 @@ cpdef ITYPE_t lsh_experimental(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, gra
             u = i
             j = succ[i]
             while j != i:
-                assert(j != -2)
                 if d[j] < min_d:
                     min_d = d[j]
                     u = j
@@ -734,7 +765,6 @@ cpdef ITYPE_t lsh_experimental(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, gra
             j = succ[u]
             succ[u] = -2
             while j != u:
-                assert(j != -2)
                 if j < u:
                     graph.add((j, u))
                 else:
@@ -744,25 +774,40 @@ cpdef ITYPE_t lsh_experimental(DTYPE_t w, ITYPE_t t, DTYPE_t[:, ::1] points, gra
                 j = succ_j
     return len(buckets)
 
-      
-# Experimental hash for tests # scikitlearn has a murmurhash module for fast hashing
-cdef ITYPE_t pre_hash(DTYPE_t[::1] point):
-    cdef ITYPE_t dim = point.shape[0]
-    cdef ITYPE_t result = 0
-    cdef ITYPE_t i = 0
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+cdef DTYPE_t scal_prod(DTYPE_t[::1] a, DTYPE_t[::1] b, ITYPE_t dim):
+    cdef DTYPE_t res = 0.
     for i in range(dim):
-        result = hash((result, point[i]))
+        res += a[i] * b[i]
+    return res
+
+# Experimental hash for tests # scikitlearn has a murmurhash module for fast hashing
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+cdef int pre_hash(DTYPE_t[::1] point):
+    cdef ITYPE_t dim = point.shape[0]
+    cdef int result = 0
+    cdef ITYPE_t i = 0
+    cdef int coord
+    for i in range(dim):
+        coord = int(point[i])
+        result = hash((result, coord))
     return result
 
 # Spanner
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef set spanner(DTYPE_t[:, ::1] points, scale_factor=2, d_min=0.001, lsh='lipschitz'):
+cpdef set spanner(DTYPE_t[:, ::1] points, scale_factor=2, d_min=0.1, d_max=None, lsh='lipschitz'):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
     cdef set graph = set()
     cdef DTYPE_t scale = dist_max(points)
+    if d_max != None:
+        scale = min(scale, d_max)
     cdef ITYPE_t u, center, e, t
     cdef ITYPE_t bucket_count = 0
     while scale > d_min and bucket_count < N:
@@ -804,7 +849,7 @@ cpdef np.ndarray[DTYPE_t, ndim=2] single_linkage_label(ITYPE_t[:, :] mst, DTYPE_
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-def ultrametric(points, d_min=0.001, scale_factor = 1.1, lsh='balls', cut_weights='approximate'):
+def ultrametric(points, d_min=0.01, scale_factor = 1.1, lsh='balls', cut_weights='approximate'):
     '''
     Compute the ultrametric
     points: the set of points as a ndarray of shape (n,d) where n is the number of points, d the dimension of the space.
@@ -834,3 +879,97 @@ def ultrametric(points, d_min=0.001, scale_factor = 1.1, lsh='balls', cut_weight
         raise ValueError('cut_weights must be "approximate", "exact" or "bounding balls"')
     
     return single_linkage_label(MST,CW)
+
+
+################### Distortion
+def infix_order(tree):
+    stack = [(-1,-1, -1)]
+    res = []
+    n = len(tree)+1
+    current = 2*n-2
+    depth = 0
+    while current != -1:
+        while current >= n:
+            stack.append((current, depth, int(tree[current-n][1])))
+            current = int(tree[current-n][0])
+            depth+=1
+
+        res.append((current, depth)) # append leaf
+
+        parent, depth, current  = stack.pop()
+        if parent != -1:
+            res.append((parent,depth))
+        depth+=1
+            
+    return res
+
+class RMQ:
+    def __init__(self, tree):
+        order = infix_order(tree)
+        self.tree = tree
+        self.n = len(tree)+1
+        self.depth = np.array([x for (_,x) in order])
+        self.indices = np.array([x for (x,_) in order])
+        self.positions = np.array([0]*len(order))
+        for t, i in enumerate(self.indices):
+            self.positions[i] = t
+
+        # sparse table for efficient search
+        self.N = len(order)
+        self.K = int(floor(log2(self.N))) # max exponent
+        self.st = np.array([[i]*(self.K+1) for i in range(self.N)])
+
+        # filling the sparse table
+        for j in range(1,self.K+1):
+            for i in range(0, self.N):
+                if i + (1 <<(j-1) ) >= self.N: break
+                i1, i2 = self.st[i][j-1], self.st[i+(1<<(j-1))][j-1]
+                if self.depth[i1] < self.depth[i2]:
+                    self.st[i][j] = i1
+                else:
+                    self.st[i][j] = i2
+
+    @cython.boundscheck(False)
+    @cython.nonecheck(False)
+    @cython.wraparound(False)
+    def search(self, ITYPE_t u, ITYPE_t v):
+        cdef ITYPE_t iu, iv, i1, i2
+        iu, iv = self.positions[u], self.positions[v]
+        if iu > iv:
+            iu, iv = iv, iu
+
+        cdef ITYPE_t j = int(floor(log2(iv-iu+1)))
+        cdef ITYPE_t a = ( 1 << j )
+        cdef ITYPE_t iv2 = iv - a + 1
+        i1, i2 = self.st[iu][j], self.st[iv2][j]
+        if self.depth[i1] < self.depth[i2]:
+            return self.indices[i1]
+        else:
+            return self.indices[i2]
+
+    @cython.boundscheck(False)
+    @cython.nonecheck(False)
+    @cython.wraparound(False)
+    def dist(self, ITYPE_t u, ITYPE_t v):
+        if u!= v:
+            return self.tree[self.search(u, v)- self.n][2]
+        return 0.
+
+@cython.boundscheck(False)
+@cython.nonecheck(False)
+@cython.wraparound(False)
+def distortion_(data, tree):
+    cdef ITYPE_t i, j
+    cdef DTYPE_t ratio, MIN, MAX, l2
+    rmq = RMQ(tree)
+    n = len(data)
+    d = data.shape[1]
+    MAX, MIN = 0., 10000000000.
+    for i in range(n):
+        for j in range(i):
+            l2 = dist(data[i], data[j], d)
+            if l2 > 0.:
+                ratio = rmq.dist(i, j) / l2
+                MAX = max(ratio, MAX)
+                MIN = min(ratio, MIN)
+    return MAX/MIN

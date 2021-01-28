@@ -42,12 +42,12 @@ class TestSum(unittest.TestCase):
         P = np.array(
             [[3.4, 4.5], [2.3, 7.2], [2.2, 2.3], [3.8, 9.9], [4.8, 6.7]],
         dtype = np.float64)
-        edges = np.array([[0,1], [0,3], [0,4], [1,2], [1,4], [2,3], [3,4]])
+        edges = set([(0,1), (0,3), (0,4), (1,2), (1,4), (2,3), (3,4)])
         MST = mst(P, edges)
         expected = [[1, 4], [0, 4], [3, 4], [1, 2]]
         self.assertEqual([ list(edge) for edge in MST ], expected)
         # Prim mst
-        all_edges = [(i, j) for j in range(len(P)) for i in range(j)]
+        all_edges = set((i, j) for j in range(len(P)) for i in range(j))
         MST = mst(P, all_edges)
         MST2 = exact_mst(P)
         self.assertEqual(sorted([sorted(list(e)) for e in MST2 ]),
@@ -156,6 +156,20 @@ class TestSum(unittest.TestCase):
         P = np.genfromtxt("datasets/DIABETES.csv", delimiter=",")
         tree = ultrametric(P)
         well_formed_tree(tree)
+
+    def test_distortion_with_mst(self):
+        # 1D
+        P = np.array(
+            [[10.], [5.], [0.], [8.], [1.], [7.]])
+        tree = [[ 3., 4., 10., 2.],
+                [ 0., 1., 20., 2.],
+                [ 2., 6., 20., 3.],
+                [ 8., 5., 40., 4.],
+                [ 7., 9., 30., 6.]]
+        mst = exact_mst(P)
+        d = distortion(P, tree)
+        d2 = distortion_with_mst(P, mst, tree)
+        #assert(d >= d2)
 
     def test_clusters(self):
         P = np.array([[ 0., 1.,   5., 2.],
