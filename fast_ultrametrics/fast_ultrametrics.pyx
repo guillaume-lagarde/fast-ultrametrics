@@ -2,8 +2,8 @@
 # distutils: language = c++
 
 # cython: language_level=3
-# cython: profile=True
-# cython: linetrace=True
+# //cython profile=True
+# //cython linetrace=True
 from __future__ import print_function
 
 import numpy as np
@@ -13,6 +13,7 @@ from libc.math cimport sqrt, round, log2, floor
 import random
 from libcpp cimport bool
 from libcpp.map cimport map
+from libcpp.unordered_set cimport unordered_set
 from libcpp.vector cimport vector
 from libcpp.pair cimport pair
 from cython.operator cimport dereference, preincrement
@@ -72,7 +73,7 @@ cdef class UnionFind():
     @cython.boundscheck(False)
     @cython.wraparound(False)
     @cython.nonecheck(False)
-    cdef ITYPE_t find(self, ITYPE_t n):
+    cdef inline ITYPE_t find(self, ITYPE_t n):
         cdef ITYPE_t p = n
         
         # find the root
@@ -514,7 +515,7 @@ cpdef cut_weight_bounding_ball(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst, DTYP
         if d > 0.:
             d_min = d
             break
-    cdef ITYPE_t core_set_max_size = int(2. * np.log(d_max/d_min) / np.log(1 + eps**2)) + 1
+    cdef ITYPE_t core_set_max_size = int(2. * np.log(d_max/d_min) / np.log(1 + eps)) + 1
     cdef ITYPE_t capacity = min(N, max_stack * core_set_max_size)
     
     cdef DTYPE_t[:, ::1] centers = np.zeros(shape=(max_stack, dim), dtype=DTYPE) # Centers of bounding balls
@@ -523,7 +524,10 @@ cpdef cut_weight_bounding_ball(DTYPE_t[:, ::1] points, ITYPE_t[:, ::1] mst, DTYP
     cdef ArrayStack stack = ArrayStack(dim, max_stack, capacity)
     
     for j in range(N-1):
-        start, mid, end, edge = node_info[j]
+        start = node_info[j][0]
+        mid = node_info[j][1]
+        end = node_info[j][2]
+        edge = node_info[j][3]
         # If some of the children are leaves, add them to the stack
         if mid == start + 1:
             stack.push()
@@ -801,7 +805,7 @@ cdef int pre_hash(DTYPE_t[::1] point):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef set spanner(DTYPE_t[:, ::1] points, scale_factor=2, d_min=0.1, d_max=None, lsh='lipschitz'):
+cpdef set spanner(DTYPE_t[:, ::1] points, scale_factor=2, d_min=0.01, d_max=300, lsh='lipschitz'):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
     cdef set graph = set()
@@ -849,7 +853,7 @@ cpdef np.ndarray[DTYPE_t, ndim=2] single_linkage_label(ITYPE_t[:, :] mst, DTYPE_
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-def ultrametric(points, d_min=0.01, scale_factor = 1.1, lsh='balls', cut_weights='approximate'):
+def ultrametric(points, d_min=0.01, scale_factor = 1.1, lsh='lipschitz', cut_weights='approximate'):
     '''
     Compute the ultrametric
     points: the set of points as a ndarray of shape (n,d) where n is the number of points, d the dimension of the space.
