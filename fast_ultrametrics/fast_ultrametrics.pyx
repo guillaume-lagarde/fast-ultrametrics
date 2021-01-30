@@ -805,7 +805,7 @@ cdef int pre_hash(DTYPE_t[::1] point):
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-cpdef set spanner(DTYPE_t[:, ::1] points, scale_factor=2, d_min=0.01, d_max=300, lsh='lipschitz'):
+cpdef set spanner(DTYPE_t[:, ::1] points, scale_factor=2, d_min=0.01, d_max=None, lsh='lipschitz'):
     cdef ITYPE_t N = points.shape[0]
     cdef ITYPE_t dim = points.shape[1]
     cdef set graph = set()
@@ -853,7 +853,7 @@ cpdef np.ndarray[DTYPE_t, ndim=2] single_linkage_label(ITYPE_t[:, :] mst, DTYPE_
 @cython.boundscheck(False)
 @cython.nonecheck(False)
 @cython.wraparound(False)
-def ultrametric(points, d_min=0.01, scale_factor = 1.1, lsh='lipschitz', cut_weights='approximate'):
+def ultrametric(points, d_min=0.0001, scale_factor = 1.1, lsh='lipschitz', cut_weights='approximate'):
     '''
     Compute the ultrametric
     points: the set of points as a ndarray of shape (n,d) where n is the number of points, d the dimension of the space.
