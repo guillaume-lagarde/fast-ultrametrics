@@ -1,10 +1,13 @@
 def dfs(root, tree, callback):
+    stack = [root]
     n = len(tree) + 1
-    if root >= n:
-        dfs(int(tree[root - n][0]), tree, callback)
-        dfs(int(tree[root - n][1]), tree, callback)
-    else:
-        callback(root)
+    while stack != []:
+        top = stack.pop()
+        if top >= n:
+            stack.append(int(tree[top - n][0]))
+            stack.append(int(tree[top - n][1]))
+        else:
+            callback(top)
 
 def assign(tab, i: int, j: int):
     tab[i] = j
